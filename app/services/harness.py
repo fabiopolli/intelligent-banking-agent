@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from app.config import settings
+from app.graph.workflow import DemoWorkflowGraph
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
 from app.schemas.messages import ChatRequest
@@ -27,6 +28,7 @@ class DemoHarness:
         self._rbac_service = rbac_service or RBACService()
         self._guardrails_service = guardrails_service or GuardrailsService()
         self._orchestrator = DemoOrchestrator(self._response_builder, self._rbac_service)
+        self._workflow_graph = DemoWorkflowGraph(self._orchestrator)
         self._pending_pix_operations: dict[str, PendingPixOperation] = {}
 
     def handle_message(self, payload: ChatRequest) -> dict:
@@ -41,15 +43,6 @@ class DemoHarness:
     def _dispatch(self, route: str, payload: ChatRequest) -> HarnessResponse:
         auth = AuthContext(customer_id=payload.customer_id, role=payload.role)
 
-        if route == "emergency":
-            return self._orchestrator.emergency(payload)
-
-        if route == "core_banking_limit":
-            return self._orchestrator.core_banking_limit(payload, auth)
-
-        if route == "core_banking_balance":
-            return self._orchestrator.core_banking_balance(payload, auth)
-
         if route == "transaction":
             pix_request = self._build_pix_request(payload)
             if pix_request.amount >= settings.hitl_pix_threshold:
@@ -58,10 +51,10 @@ class DemoHarness:
                     amount=pix_request.amount,
                     destination_key=pix_request.destination_key,
                 )
-                return self._orchestrator.transaction_checkpoint(payload.session_id)
-            return self._orchestrator.transaction_execute(payload.session_id, pix_request)
+                return self._workflow_graph.checkpoint(payload.session_id)
+            return self._workflow_graph.invoke(payload, auth, route, pix_request=pix_request)
 
-        return self._orchestrator.faq_fast_path(payload.session_id)
+        return self._workflow_graph.invoke(payload, auth, route)
 
     def _resume_pending_operation(self, payload: ChatRequest) -> HarnessResponse:
         pending = self._pending_pix_operations.get(payload.session_id)
@@ -69,9 +62,7 @@ class DemoHarness:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
 
         response = self._orchestrator.transaction_resume(
-            payload,
-            AuthContext(customer_id=payload.customer_id, role=payload.role),
-            pending,
+            payload, AuthContext(customer_id=payload.customer_id, role=payload.role), pending
         )
         self._pending_pix_operations.pop(payload.session_id, None)
         return response

@@ -30,11 +30,24 @@ Cada slice deve evoluir:
 
 ## Como Rodar Localmente
 
+### Passo a passo recomendado
+
+1. inicie o backend em um terminal
+2. mantenha esse terminal aberto
+3. inicie o frontend em outro terminal
+4. abra a interface do Streamlit
+5. valide snapshot, prompts e respostas do agente
+
 ### Backend
 
 ```powershell
 .\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
+
+Quando estiver saudável, o backend deve ficar disponível em:
+
+- `http://127.0.0.1:8000`
+- `http://127.0.0.1:8000/docs`
 
 ### Frontend
 
@@ -42,11 +55,26 @@ Cada slice deve evoluir:
 .\.venv\Scripts\python -m streamlit run frontend/streamlit_app.py
 ```
 
+No frontend, confira se a sidebar está apontando para:
+
+- `API URL = http://localhost:8000/v1`
+
 ### Testes
 
 ```powershell
 .\.venv\Scripts\python -m pytest -q
 ```
+
+### Troubleshooting rápido
+
+Se o frontend mostrar erro como `WinError 10061`, normalmente significa que o backend não está rodando ou não está acessível na porta `8000`.
+
+Checklist rápido:
+
+1. confirmar se o terminal do backend continua aberto
+2. confirmar se o backend subiu sem erro
+3. abrir `http://127.0.0.1:8000/docs`
+4. conferir a `API URL` no Streamlit
 
 ## Slices Já Visíveis na Demo
 
