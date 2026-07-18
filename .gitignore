@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+*.pyc
+.temp/
+.agents/
+AGENTS.md
+.vscode/
+intelligent_banking_agent.egg-info/
+.docs/

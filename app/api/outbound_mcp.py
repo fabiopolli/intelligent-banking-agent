@@ -1,0 +1,37 @@
+from fastapi import APIRouter, HTTPException
+
+from app.schemas.outbound import (
+    BalanceResponse,
+    CardLimitUpdateRequest,
+    CustomerProfileResponse,
+    PixCreateRequest,
+)
+from app.services.mock_bank import mock_bank_service
+
+router = APIRouter(tags=["outbound-mocks"])
+
+
+@router.get("/mcp/users/profile/{customer_id}", response_model=CustomerProfileResponse)
+def get_customer_profile(customer_id: str) -> CustomerProfileResponse:
+    profile = mock_bank_service.get_customer_profile(customer_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+    return profile
+
+
+@router.get("/mcp/accounts/balance/{customer_id}", response_model=BalanceResponse)
+def get_account_balance(customer_id: str) -> BalanceResponse:
+    balance = mock_bank_service.get_balance(customer_id)
+    if balance is None:
+        raise HTTPException(status_code=404, detail="Customer not found.")
+    return balance
+
+
+@router.post("/mcp/cards/limit")
+def update_card_limit(payload: CardLimitUpdateRequest) -> dict:
+    return mock_bank_service.update_card_limit(payload)
+
+
+@router.post("/mcp/payments/pix")
+def create_pix(payload: PixCreateRequest) -> dict:
+    return mock_bank_service.create_pix(payload)
