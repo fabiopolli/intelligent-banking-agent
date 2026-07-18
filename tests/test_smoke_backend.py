@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.api.inbound import harness
 from app.services.mock_bank import mock_bank_service
 
 
@@ -127,3 +128,7 @@ def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> 
         },
     )
     assert second_confirmation.status_code == 400
+
+
+def test_workflow_graph_object_is_available_in_harness() -> None:
+    assert harness._workflow_graph is not None

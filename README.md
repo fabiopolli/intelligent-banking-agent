@@ -14,6 +14,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - frontend Streamlit inicial para validação local
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
+- `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 
 ## Estratégia de Entrega
 
@@ -65,6 +66,10 @@ No frontend, confira se a sidebar está apontando para:
 .\.venv\Scripts\python -m pytest -q
 ```
 
+Resultado validado em 18 de julho de 2026:
+
+- `8 passed, 1 warning`
+
 ### Troubleshooting rápido
 
 Se o frontend mostrar erro como `WinError 10061`, normalmente significa que o backend não está rodando ou não está acessível na porta `8000`.
@@ -98,8 +103,8 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- integrar `StateGraph` real do LangGraph
 - adicionar trilha de auditoria imutável
+- adicionar estratégia de checkpoint persistente para HITL
 - implementar slice documental com RAG híbrido
 - expandir frontend por slice
 - consolidar documentação final para PR

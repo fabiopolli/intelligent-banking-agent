@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Literal, TypedDict
 
 from app.schemas.auth import AuthContext
+from app.schemas.harness import HarnessResponse
 from app.schemas.messages import ChatRequest
+from app.schemas.outbound import PixCreateRequest
 
 
 WorkflowRoute = Literal[
@@ -15,7 +17,6 @@ WorkflowRoute = Literal[
 ]
 
 WorkflowNode = Literal[
-    "classify_intent",
     "faq_node",
     "core_banking_limit_node",
     "core_banking_balance_node",
@@ -29,3 +30,6 @@ class WorkflowState(TypedDict):
     auth: AuthContext
     route: WorkflowRoute
     next_node: WorkflowNode
+    response: HarnessResponse | None
+    pix_request: PixCreateRequest | None
+    pending_operation: dict[str, str | float] | None

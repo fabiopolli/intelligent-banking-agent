@@ -61,8 +61,11 @@ class DemoHarness:
         if pending is None:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
 
-        response = self._orchestrator.transaction_resume(
-            payload, AuthContext(customer_id=payload.customer_id, role=payload.role), pending
+        response = self._workflow_graph.invoke(
+            payload,
+            AuthContext(customer_id=payload.customer_id, role=payload.role),
+            "transaction",
+            pending_operation=pending,
         )
         self._pending_pix_operations.pop(payload.session_id, None)
         return response
