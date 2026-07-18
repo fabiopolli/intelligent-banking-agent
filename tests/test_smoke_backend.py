@@ -96,3 +96,34 @@ def test_low_value_pix_executes_without_confirmation() -> None:
     assert body["route"] == "transaction"
     assert body["requires_confirmation"] is False
     assert body["balance"] == 24900.0
+
+
+def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> None:
+    client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-6",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 7000 para a minha chave",
+        },
+    )
+
+    first_confirmation = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-6",
+            "customer_id": "123",
+            "message": "confirmo",
+        },
+    )
+    assert first_confirmation.status_code == 200
+
+    second_confirmation = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-6",
+            "customer_id": "123",
+            "message": "confirmo",
+        },
+    )
+    assert second_confirmation.status_code == 400
