@@ -36,6 +36,12 @@ def fetch_balance(api_url: str, customer_id: str) -> dict:
     return response.json()
 
 
+def fetch_audit_events(api_url: str, customer_id: str) -> list[dict]:
+    response = httpx.get(f"{api_url}/mcp/audit/{customer_id}", timeout=10.0)
+    response.raise_for_status()
+    return response.json()
+
+
 def render_sidebar() -> tuple[str, str, str, str]:
     st.sidebar.header("Session")
     api_url = st.sidebar.text_input("API URL", value=DEFAULT_API_URL)
@@ -62,6 +68,51 @@ def render_snapshot(api_url: str, customer_id: str) -> None:
         right.error(f"Balance lookup failed: {exc}")
 
 
+def render_audit_panel(api_url: str, customer_id: str) -> None:
+    st.subheader("Critical Audit Trail")
+
+    try:
+        events = fetch_audit_events(api_url, customer_id)
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Audit lookup failed: {exc}")
+        return
+
+    st.caption("Append-only events for critical operations executed in the current mock environment.")
+
+    if not events:
+        st.info("No critical events recorded yet for this customer.")
+        return
+
+    st.metric("Critical events", len(events))
+
+    for event in reversed(events):
+        title = f"{event['event_type']} at {event['timestamp']}"
+        with st.expander(title, expanded=False):
+            st.json(event)
+
+
+def render_last_response() -> None:
+    st.subheader("Last Agent Result")
+    last_result = st.session_state.get("last_result")
+    if last_result is None:
+        st.info("Send a message to inspect the selected route, checkpoint state, and raw response payload.")
+        return
+
+    route = last_result.get("route", "unknown")
+    requires_confirmation = "Yes" if last_result.get("requires_confirmation") else "No"
+
+    metric_left, metric_center, metric_right = st.columns(3)
+    metric_left.metric("Selected route", route)
+    metric_center.metric("Needs confirmation", requires_confirmation)
+    metric_right.metric("Pending operation", last_result.get("pending_operation") or "-")
+
+    st.markdown("**Response message**")
+    st.write(last_result.get("message", ""))
+
+    st.markdown("**Raw payload**")
+    st.code(json.dumps(last_result, indent=2, ensure_ascii=False), language="json")
+
+
 def render_chat_console(api_url: str, session_id: str, customer_id: str, role: str) -> None:
     st.subheader("Agent Console")
 
@@ -80,16 +131,8 @@ def render_chat_console(api_url: str, session_id: str, customer_id: str, role: s
     if st.button("Send message", type="primary"):
         try:
             result = send_chat_message(api_url, session_id, customer_id, role, message)
+            st.session_state["last_result"] = result
             st.success("Message processed.")
-
-            route = result.get("route", "unknown")
-            st.metric("Selected route", route)
-
-            st.markdown("**Response message**")
-            st.write(result.get("message", ""))
-
-            st.markdown("**Raw payload**")
-            st.code(json.dumps(result, indent=2, ensure_ascii=False), language="json")
         except Exception as exc:  # noqa: BLE001
             st.error(f"Message failed: {exc}")
 
@@ -106,6 +149,12 @@ def main() -> None:
         render_snapshot(api_url, customer_id)
     with top_right:
         render_chat_console(api_url, session_id, customer_id, role)
+
+    bottom_left, bottom_right = st.columns([1, 2])
+    with bottom_left:
+        render_audit_panel(api_url, customer_id)
+    with bottom_right:
+        render_last_response()
 
 
 if __name__ == "__main__":

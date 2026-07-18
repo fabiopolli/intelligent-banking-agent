@@ -12,6 +12,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - fluxo de PIX com HITL para alto valor
 - fluxo de emergência com bloqueio de cartão
 - frontend Streamlit inicial para validação local
+- painel de auditoria crítica e último resultado do agente no frontend
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
@@ -61,6 +62,12 @@ No frontend, confira se a sidebar está apontando para:
 
 - `API URL = http://localhost:8000/v1`
 
+Na tela da demo, valide também:
+
+- `Customer Snapshot` para perfil e saldo atualizados
+- `Last Agent Result` para rota, checkpoint e payload retornado pelo Harness
+- `Critical Audit Trail` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
+
 ### Testes
 
 ```powershell
@@ -98,6 +105,12 @@ Checklist rápido:
 - manutenção de estado do cartão no mock interno
 - emissão de eventos de auditoria para operações críticas
 
+### Observabilidade Local da Demo
+
+- a última rota selecionada pelo Harness fica visível na interface
+- checkpoints de confirmação aparecem no resumo do último resultado
+- a trilha de auditoria crítica pode ser inspecionada sem sair da demo
+
 ### FAQ Fast Path
 
 - resposta inicial estável para perguntas simples
@@ -106,7 +119,7 @@ Checklist rápido:
 ## Próximos Passos
 
 - adicionar estratégia de checkpoint persistente para HITL
-- exibir auditoria no frontend para facilitar a demonstração
+- executar QA smoke do slice de auditoria visível no frontend
 - implementar slice documental com RAG híbrido
 - expandir frontend por slice
 - consolidar documentação final para PR
