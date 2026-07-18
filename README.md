@@ -15,6 +15,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
+- trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 
 ## Estratégia de Entrega
 
@@ -68,7 +69,7 @@ No frontend, confira se a sidebar está apontando para:
 
 Resultado validado em 18 de julho de 2026:
 
-- `8 passed, 1 warning`
+- `9 passed, 1 warning`
 
 ### Troubleshooting rápido
 
@@ -95,6 +96,7 @@ Checklist rápido:
 - consulta de limite
 - bloqueio de cartão por emergência
 - manutenção de estado do cartão no mock interno
+- emissão de eventos de auditoria para operações críticas
 
 ### FAQ Fast Path
 
@@ -103,8 +105,8 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- adicionar trilha de auditoria imutável
 - adicionar estratégia de checkpoint persistente para HITL
+- exibir auditoria no frontend para facilitar a demonstração
 - implementar slice documental com RAG híbrido
 - expandir frontend por slice
 - consolidar documentação final para PR

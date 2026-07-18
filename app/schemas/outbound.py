@@ -24,3 +24,11 @@ class PixCreateRequest(BaseModel):
     customer_id: str
     amount: float = Field(gt=0)
     destination_key: str = Field(min_length=1)
+
+
+class AuditEventResponse(BaseModel):
+    event_id: str
+    customer_id: str
+    event_type: str
+    timestamp: str
+    payload: dict

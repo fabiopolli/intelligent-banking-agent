@@ -4,11 +4,13 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 
 from app.schemas.outbound import (
+    AuditEventResponse,
     BalanceResponse,
     CardLimitUpdateRequest,
     CustomerProfileResponse,
     PixCreateRequest,
 )
+from app.services.audit_log import audit_log_service
 
 
 @dataclass
@@ -65,6 +67,14 @@ class MockBankService:
         customer.card_limit = payload.new_limit
         customer.available_limit = min(customer.available_limit, payload.new_limit)
         customer.history.append({"action": "LIMIT_CHANGE", "new_limit": payload.new_limit})
+        audit_log_service.append(
+            customer.customer_id,
+            "LIMIT_CHANGE",
+            {
+                "new_limit": payload.new_limit,
+                "available_limit": customer.available_limit,
+            },
+        )
         return {
             "customer_id": customer.customer_id,
             "card_limit": customer.card_limit,
@@ -81,6 +91,15 @@ class MockBankService:
                 "destination_key": payload.destination_key,
             }
         )
+        audit_log_service.append(
+            customer.customer_id,
+            "PIX",
+            {
+                "amount": payload.amount,
+                "destination_key": payload.destination_key,
+                "resulting_balance": customer.balance,
+            },
+        )
         return {
             "customer_id": customer.customer_id,
             "balance": customer.balance,
@@ -91,11 +110,22 @@ class MockBankService:
         customer = self._require_customer(customer_id)
         customer.card_status = "BLOCKED"
         customer.history.append({"action": "CARD_BLOCKED"})
+        audit_log_service.append(
+            customer.customer_id,
+            "CARD_BLOCKED",
+            {
+                "card_status": customer.card_status,
+            },
+        )
         return {"customer_id": customer.customer_id, "card_status": customer.card_status}
 
     def get_service_history(self, customer_id: str) -> list[dict]:
         customer = self._require_customer(customer_id)
         return deepcopy(customer.history)
+
+    def get_audit_events(self, customer_id: str) -> list[AuditEventResponse]:
+        events = audit_log_service.list_by_customer(customer_id)
+        return [AuditEventResponse.model_validate(event) for event in events]
 
     def _require_customer(self, customer_id: str) -> CustomerState:
         customer = self._customers.get(customer_id)

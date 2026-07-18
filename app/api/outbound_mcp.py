@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.outbound import (
+    AuditEventResponse,
     BalanceResponse,
     CardLimitUpdateRequest,
     CustomerProfileResponse,
@@ -35,3 +36,8 @@ def update_card_limit(payload: CardLimitUpdateRequest) -> dict:
 @router.post("/mcp/payments/pix")
 def create_pix(payload: PixCreateRequest) -> dict:
     return mock_bank_service.create_pix(payload)
+
+
+@router.get("/mcp/audit/{customer_id}", response_model=list[AuditEventResponse])
+def get_audit_events(customer_id: str) -> list[AuditEventResponse]:
+    return mock_bank_service.get_audit_events(customer_id)

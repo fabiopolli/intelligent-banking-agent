@@ -32,6 +32,11 @@ def test_stateful_limit_update_smoke() -> None:
     assert profile_response.status_code == 200
     assert profile_response.json()["card_limit"] == 15000
 
+    audit_response = client.get("/v1/mcp/audit/123")
+    assert audit_response.status_code == 200
+    audit_body = audit_response.json()
+    assert audit_body[-1]["event_type"] == "LIMIT_CHANGE"
+
 
 def test_empty_message_is_rejected() -> None:
     response = client.post(
@@ -81,6 +86,9 @@ def test_emergency_flow_blocks_card() -> None:
     assert body["card_status"] == "BLOCKED"
     history = mock_bank_service.get_service_history("123")
     assert history[-1]["action"] == "CARD_BLOCKED"
+    audit_response = client.get("/v1/mcp/audit/123")
+    assert audit_response.status_code == 200
+    assert audit_response.json()[-1]["event_type"] == "CARD_BLOCKED"
 
 
 def test_low_value_pix_executes_without_confirmation() -> None:
@@ -132,3 +140,21 @@ def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> 
 
 def test_workflow_graph_object_is_available_in_harness() -> None:
     assert harness._workflow_graph is not None
+
+
+def test_pix_emits_append_only_audit_event() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-7",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 100 para a minha chave",
+        },
+    )
+    assert response.status_code == 200
+
+    audit_response = client.get("/v1/mcp/audit/123")
+    assert audit_response.status_code == 200
+    audit_body = audit_response.json()
+    assert audit_body[-1]["event_type"] == "PIX"
+    assert audit_body[-1]["payload"]["amount"] == 100.0
