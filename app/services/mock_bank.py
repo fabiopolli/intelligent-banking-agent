@@ -87,6 +87,16 @@ class MockBankService:
             "status": "SUCCESS",
         }
 
+    def block_card(self, customer_id: str) -> dict:
+        customer = self._require_customer(customer_id)
+        customer.card_status = "BLOCKED"
+        customer.history.append({"action": "CARD_BLOCKED"})
+        return {"customer_id": customer.customer_id, "card_status": customer.card_status}
+
+    def get_service_history(self, customer_id: str) -> list[dict]:
+        customer = self._require_customer(customer_id)
+        return deepcopy(customer.history)
+
     def _require_customer(self, customer_id: str) -> CustomerState:
         customer = self._customers.get(customer_id)
         if customer is None:

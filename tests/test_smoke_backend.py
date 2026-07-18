@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.mock_bank import mock_bank_service
 
 
 client = TestClient(app)
@@ -37,3 +38,61 @@ def test_empty_message_is_rejected() -> None:
         json={"session_id": "sess-2", "customer_id": "123", "message": "   "},
     )
     assert response.status_code == 400
+
+
+def test_pix_requires_confirmation_and_updates_balance_after_resume() -> None:
+    checkpoint_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-3",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 7000 para a minha chave",
+        },
+    )
+    assert checkpoint_response.status_code == 200
+    checkpoint_body = checkpoint_response.json()
+    assert checkpoint_body["route"] == "transaction"
+    assert checkpoint_body["requires_confirmation"] is True
+    assert checkpoint_body["pending_operation"] == "create_pix"
+
+    resume_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-3",
+            "customer_id": "123",
+            "message": "confirmo",
+        },
+    )
+    assert resume_response.status_code == 200
+    resume_body = resume_response.json()
+    assert resume_body["route"] == "transaction"
+    assert resume_body["balance"] == 18000.0
+
+
+def test_emergency_flow_blocks_card() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={"session_id": "sess-4", "customer_id": "123", "message": "Fui roubado"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "emergency"
+    assert body["card_status"] == "BLOCKED"
+    history = mock_bank_service.get_service_history("123")
+    assert history[-1]["action"] == "CARD_BLOCKED"
+
+
+def test_low_value_pix_executes_without_confirmation() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-5",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 100 para a minha chave",
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "transaction"
+    assert body["requires_confirmation"] is False
+    assert body["balance"] == 24900.0

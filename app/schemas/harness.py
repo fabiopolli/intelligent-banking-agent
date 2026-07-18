@@ -7,3 +7,6 @@ class HarnessResponse(BaseModel):
     message: str
     card_status: str | None = None
     hitl_threshold: float | None = None
+    requires_confirmation: bool = False
+    pending_operation: str | None = None
+    balance: float | None = None

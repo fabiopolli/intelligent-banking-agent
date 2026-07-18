@@ -28,12 +28,22 @@ class ResponseBuilder:
             message=f"Seu saldo atual e R$ {balance.balance:.2f}.",
         )
 
-    def transaction(self, session_id: str) -> HarnessResponse:
+    def transaction_checkpoint(self, session_id: str) -> HarnessResponse:
         return HarnessResponse(
             route="transaction",
             session_id=session_id,
-            message="Fluxo de PIX identificado. Confirmacao formal sera necessaria acima do threshold.",
+            message="Fluxo de PIX identificado. Confirmacao formal sera necessaria antes da execucao.",
             hitl_threshold=settings.hitl_pix_threshold,
+            requires_confirmation=True,
+            pending_operation="create_pix",
+        )
+
+    def transaction_success(self, session_id: str, balance: float) -> HarnessResponse:
+        return HarnessResponse(
+            route="transaction",
+            session_id=session_id,
+            message=f"PIX realizado com sucesso. Seu saldo atualizado e R$ {balance:.2f}.",
+            balance=balance,
         )
 
     def faq_fast_path(self, session_id: str) -> HarnessResponse:
