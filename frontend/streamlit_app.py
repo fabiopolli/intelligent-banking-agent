@@ -109,15 +109,34 @@ def render_last_response() -> None:
     st.markdown("**Response message**")
     st.write(last_result.get("message", ""))
 
+    render_grounding_panel(last_result)
+
     st.markdown("**Raw payload**")
     st.code(json.dumps(last_result, indent=2, ensure_ascii=False), language="json")
+
+
+def render_grounding_panel(last_result: dict) -> None:
+    sources = last_result.get("grounding_sources") or []
+    if last_result.get("route") != "faq_fast_path":
+        return
+
+    st.markdown("**Grounding**")
+    st.metric("Official sources", len(sources))
+
+    if not sources:
+        st.warning("No official grounding source was returned for this answer.")
+        return
+
+    for source in sources:
+        st.code(source, language="text")
 
 
 def render_chat_console(api_url: str, session_id: str, customer_id: str, role: str) -> None:
     st.subheader("Agent Console")
 
     quick_prompts = {
-        "Fast path": "Como funciona a tarifa da conta?",
+        "RAG tarifas": "Onde consulto tarifas e pacotes de servicos?",
+        "RAG sem contexto": "Qual e a cotacao do dolar comercial agora?",
         "Saldo": "Qual meu saldo?",
         "Limite": "Qual meu limite?",
         "PIX": "Quero fazer um PIX",

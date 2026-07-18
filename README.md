@@ -69,6 +69,7 @@ Na tela da demo, valide também:
 - `Customer Snapshot` para perfil e saldo atualizados
 - `Last Agent Result` para rota, checkpoint e payload retornado pelo Harness
 - `Critical Audit Trail` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
+- `Grounding` no `Last Agent Result` ao usar os prompts `RAG tarifas` e `RAG sem contexto`
 
 ### Testes
 
@@ -118,6 +119,7 @@ Checklist rápido:
 
 - resposta grounded para perguntas documentais simples
 - fontes retornadas em `grounding_sources` no payload do Harness
+- frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
 
 ## Próximos Passos
