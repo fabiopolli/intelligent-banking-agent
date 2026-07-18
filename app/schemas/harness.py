@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HarnessResponse(BaseModel):
@@ -10,3 +10,4 @@ class HarnessResponse(BaseModel):
     requires_confirmation: bool = False
     pending_operation: str | None = None
     balance: float | None = None
+    grounding_sources: list[str] = Field(default_factory=list)

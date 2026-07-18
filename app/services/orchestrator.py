@@ -8,6 +8,7 @@ from app.schemas.messages import ChatRequest
 from app.schemas.outbound import PixCreateRequest
 from app.security.rbac import RBACService
 from app.services.customer_support import CustomerSupportService
+from app.services.knowledge_base import GroundedKnowledgeService, knowledge_service
 from app.services.mock_bank import mock_bank_service
 from app.services.response_builder import ResponseBuilder
 
@@ -84,11 +85,19 @@ class TransactionNode:
 
 
 class FaqNode:
-    def __init__(self, response_builder: ResponseBuilder) -> None:
+    def __init__(
+        self,
+        response_builder: ResponseBuilder,
+        grounded_knowledge: GroundedKnowledgeService,
+    ) -> None:
         self._response_builder = response_builder
+        self._grounded_knowledge = grounded_knowledge
 
-    def handle(self, session_id: str) -> HarnessResponse:
-        return self._response_builder.faq_fast_path(session_id)
+    def handle(self, payload: ChatRequest) -> HarnessResponse:
+        message, sources = self._grounded_knowledge.answer(payload.message)
+        if not sources:
+            return self._response_builder.grounded_knowledge(payload.session_id, message, sources)
+        return self._response_builder.grounded_knowledge(payload.session_id, message, sources)
 
 
 class DemoOrchestrator:
@@ -96,11 +105,12 @@ class DemoOrchestrator:
         self,
         response_builder: ResponseBuilder,
         rbac_service: RBACService,
+        grounded_knowledge: GroundedKnowledgeService | None = None,
     ) -> None:
         self._emergency = EmergencyNode(response_builder)
         self._core_banking = CoreBankingNode(response_builder, rbac_service)
         self._transaction = TransactionNode(response_builder, rbac_service)
-        self._faq = FaqNode(response_builder)
+        self._faq = FaqNode(response_builder, grounded_knowledge or knowledge_service)
 
     def emergency(self, payload: ChatRequest) -> HarnessResponse:
         return self._emergency.handle(payload)
@@ -125,5 +135,5 @@ class DemoOrchestrator:
     ) -> HarnessResponse:
         return self._transaction.resume_pix(payload, auth, pending_operation)
 
-    def faq_fast_path(self, session_id: str) -> HarnessResponse:
-        return self._faq.handle(session_id)
+    def faq_fast_path(self, payload: ChatRequest) -> HarnessResponse:
+        return self._faq.handle(payload)

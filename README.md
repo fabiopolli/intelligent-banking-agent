@@ -18,6 +18,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
+- RAG local inicial com recuperacao hibrida lexical/BM25-like e grounding sources
 
 ## Estratégia de Entrega
 
@@ -77,7 +78,7 @@ Na tela da demo, valide também:
 
 Resultado validado em 18 de julho de 2026:
 
-- `10 passed, 1 warning`
+- `12 passed, 1 warning`
 
 ### Troubleshooting rápido
 
@@ -115,11 +116,12 @@ Checklist rápido:
 
 ### FAQ Fast Path
 
-- resposta inicial estável para perguntas simples
-- preparado para evolução posterior com RAG híbrido
+- resposta grounded para perguntas documentais simples
+- fontes retornadas em `grounding_sources` no payload do Harness
+- falha segura quando nao ha contexto oficial suficiente
 
 ## Próximos Passos
 
-- implementar slice documental com RAG híbrido
+- ingerir o PDF de tarifas completo no pipeline documental
 - expandir frontend por slice
 - consolidar documentação final para PR

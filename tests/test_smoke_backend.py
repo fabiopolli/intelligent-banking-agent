@@ -109,6 +109,40 @@ def test_low_value_pix_executes_without_confirmation() -> None:
     assert body["balance"] == 24900.0
 
 
+def test_documental_tariff_question_returns_grounded_source() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-1",
+            "customer_id": "123",
+            "message": "Onde consulto tarifas e pacotes de servicos?",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
+    assert "fonte oficial" in body["message"].lower()
+
+
+def test_documental_question_without_context_fails_safely() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-2",
+            "customer_id": "123",
+            "message": "Qual e a cotacao do dolar comercial agora?",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert body["grounding_sources"] == []
+    assert "nao encontrei contexto oficial suficiente" in body["message"].lower()
+
+
 def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> None:
     client.post(
         "/v1/channels/app/chat",

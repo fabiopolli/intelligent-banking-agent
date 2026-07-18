@@ -103,7 +103,7 @@ class DemoWorkflowGraph:
             if pix_request is None:
                 raise ValueError("Pix request is required for transaction execution.")
             return self._orchestrator.transaction_execute(payload.session_id, pix_request)
-        return self._orchestrator.faq_fast_path(payload.session_id)
+        return self._orchestrator.faq_fast_path(payload)
 
     def _build_langgraph(self) -> Any:
         graph = StateGraph(WorkflowState)
@@ -125,7 +125,7 @@ class DemoWorkflowGraph:
         return state["next_node"]
 
     def _faq_node(self, state: WorkflowState) -> WorkflowState:
-        return {"response": self._orchestrator.faq_fast_path(state["payload"].session_id)}
+        return {"response": self._orchestrator.faq_fast_path(state["payload"])}
 
     def _core_banking_limit_node(self, state: WorkflowState) -> WorkflowState:
         return {
