@@ -9,6 +9,7 @@ from app.schemas.outbound import (
 )
 from app.services.mock_bank import mock_bank_service
 from app.services.observability import langsmith_status
+from app.services.knowledge_base import knowledge_service
 from app.services.trace_store import trace_store
 
 router = APIRouter(tags=["outbound-mocks"])
@@ -56,3 +57,8 @@ def get_last_trace(session_id: str) -> dict:
 @router.get("/mcp/observability/status")
 def get_observability_status() -> dict:
     return {"langsmith": langsmith_status()}
+
+
+@router.get("/mcp/knowledge/status")
+def get_knowledge_status() -> dict:
+    return knowledge_service.status()

@@ -11,6 +11,7 @@ from frontend.ui_common import (
     configure_page,
     fetch_audit_events,
     fetch_balance,
+    fetch_knowledge_status,
     fetch_observability_status,
     fetch_profile,
     fetch_trace,
@@ -133,6 +134,23 @@ def render_observability_panel(api_url: str) -> None:
         st.info("Set LANGSMITH_TRACING=true and LANGSMITH_API_KEY to send traces to LangSmith.")
 
 
+def render_knowledge_panel(api_url: str) -> None:
+    st.subheader("Knowledge Base")
+    try:
+        status = fetch_knowledge_status(api_url)
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Knowledge lookup failed: {exc}")
+        return
+
+    first, second = st.columns(2)
+    first.metric("Documents", status["document_count"])
+    second.metric("PDF", "Ingested" if status["pdf_ingested"] else "Fallback")
+
+    with st.expander("Sources", expanded=False):
+        for source in status["sources"]:
+            st.markdown(f"<div class='source-pill'>{source}</div>", unsafe_allow_html=True)
+
+
 def main() -> None:
     configure_page("Agent Ops Dashboard")
     render_header(
@@ -152,6 +170,7 @@ def main() -> None:
         render_trace_panel(api_url, session_id)
     with right:
         render_observability_panel(api_url)
+        render_knowledge_panel(api_url)
         render_evidence_panel(api_url, session_id)
 
 

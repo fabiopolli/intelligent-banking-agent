@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import math
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
+from pathlib import Path
+
+from app.services.observability import traceable
 
 
 @dataclass(frozen=True)
@@ -49,12 +53,156 @@ OFFICIAL_KNOWLEDGE_DOCUMENTS = [
     ),
 ]
 
+TARIFF_PDF_PATH = Path(".docs/tabela_geral_de_tarifas_pf_pdf.pdf")
+TARIFF_PDF_SOURCE = ".docs/tabela_geral_de_tarifas_pf_pdf.pdf"
+DOCUMENTAL_QUERY_TERMS = {
+    "atendimento",
+    "cartao",
+    "conta",
+    "corrente",
+    "governanca",
+    "itau",
+    "pacote",
+    "politica",
+    "poupanca",
+    "saque",
+    "segunda",
+    "servico",
+    "servicos",
+    "tarifa",
+    "tarifas",
+    "transferencia",
+}
+
+
+class TariffPdfIngestor:
+    def __init__(
+        self,
+        pdf_path: Path = TARIFF_PDF_PATH,
+        chunk_size: int = 900,
+        chunk_overlap: int = 120,
+        cache_path: Path = Path(".runtime/knowledge_tariff_chunks.json"),
+    ) -> None:
+        self._pdf_path = pdf_path
+        self._chunk_size = chunk_size
+        self._chunk_overlap = chunk_overlap
+        self._cache_path = cache_path
+
+    @traceable(name="Tariff PDF Ingestion", run_type="retriever")
+    def load_documents(self) -> list[KnowledgeDocument]:
+        if not self._pdf_path.exists():
+            return []
+
+        cached = self._load_cache()
+        if cached:
+            return cached
+
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            return []
+
+        reader = PdfReader(str(self._pdf_path))
+        documents: list[KnowledgeDocument] = []
+        for page_number, page in enumerate(reader.pages, start=1):
+            text = self._normalize_whitespace(page.extract_text() or "")
+            if not text:
+                continue
+            for chunk_index, chunk in enumerate(self._split_text(text), start=1):
+                documents.append(
+                    KnowledgeDocument(
+                        title=f"Tabela geral de tarifas PF - pagina {page_number} - trecho {chunk_index}",
+                        source=TARIFF_PDF_SOURCE,
+                        text=f"Pagina {page_number}. {chunk}",
+                    )
+                )
+        self._write_cache(documents)
+        return documents
+
+    def _load_cache(self) -> list[KnowledgeDocument]:
+        if not self._cache_path.exists():
+            return []
+
+        try:
+            payload = json.loads(self._cache_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return []
+
+        if payload.get("pdf_signature") != self._pdf_signature():
+            return []
+
+        return [
+            KnowledgeDocument(
+                title=str(item["title"]),
+                source=str(item["source"]),
+                text=str(item["text"]),
+            )
+            for item in payload.get("documents", [])
+        ]
+
+    def _write_cache(self, documents: list[KnowledgeDocument]) -> None:
+        self._cache_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "pdf_signature": self._pdf_signature(),
+            "documents": [
+                {
+                    "title": document.title,
+                    "source": document.source,
+                    "text": document.text,
+                }
+                for document in documents
+            ],
+        }
+        self._cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    def _pdf_signature(self) -> dict[str, int]:
+        stat = self._pdf_path.stat()
+        return {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+
+    def _split_text(self, text: str) -> list[str]:
+        if len(text) <= self._chunk_size:
+            return [text]
+
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = min(start + self._chunk_size, len(text))
+            chunks.append(text[start:end].strip())
+            if end == len(text):
+                break
+            start = max(end - self._chunk_overlap, start + 1)
+        return [chunk for chunk in chunks if chunk]
+
+    def _normalize_whitespace(self, text: str) -> str:
+        return re.sub(r"\s+", " ", text).strip()
+
+
+def build_official_documents() -> list[KnowledgeDocument]:
+    ingested = TariffPdfIngestor().load_documents()
+    if not ingested:
+        return OFFICIAL_KNOWLEDGE_DOCUMENTS
+
+    non_pdf_documents = [
+        document
+        for document in OFFICIAL_KNOWLEDGE_DOCUMENTS
+        if document.source != TARIFF_PDF_SOURCE
+    ]
+    return non_pdf_documents + ingested
+
 
 class LocalHybridRetriever:
     def __init__(self, documents: list[KnowledgeDocument] | None = None) -> None:
-        self._documents = documents or OFFICIAL_KNOWLEDGE_DOCUMENTS
+        self._documents = documents or build_official_documents()
         self._tokenized_documents = [self._tokenize(document.text) for document in self._documents]
         self._document_frequency = self._build_document_frequency()
+
+    @property
+    def document_count(self) -> int:
+        return len(self._documents)
+
+    @property
+    def sources(self) -> list[str]:
+        return sorted({document.source for document in self._documents})
 
     def retrieve(self, query: str, top_k: int = 2) -> list[RetrievedKnowledge]:
         query_terms = self._tokenize(query)
@@ -129,8 +277,15 @@ class GroundedKnowledgeService:
         self._retriever = retriever or LocalHybridRetriever()
 
     def answer(self, query: str) -> tuple[str, list[str]]:
+        if not self._is_supported_documental_query(query):
+            return (
+                "Nao encontrei contexto oficial suficiente para responder com seguranca. "
+                "Posso seguir por atendimento humano ou por uma fonte oficial mais especifica.",
+                [],
+            )
+
         retrieved = self._retriever.retrieve(query)
-        if not retrieved or retrieved[0].score < 0.15:
+        if not retrieved or retrieved[0].score < 0.65:
             return (
                 "Nao encontrei contexto oficial suficiente para responder com seguranca. "
                 "Posso seguir por atendimento humano ou por uma fonte oficial mais especifica.",
@@ -138,10 +293,11 @@ class GroundedKnowledgeService:
             )
 
         primary = retrieved[0]
+        excerpt = self._compact_excerpt(primary.text)
         if "tarifa" in query.lower() or "pacote" in query.lower():
             message = (
                 "Para tarifas e pacotes, a resposta deve ser conferida na tabela geral de tarifas PF. "
-                "Nesta demo local, encontrei a fonte oficial preparada para grounding documental."
+                f"Encontrei contexto oficial no trecho: {excerpt}"
             )
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
@@ -154,8 +310,25 @@ class GroundedKnowledgeService:
                 "Use a fonte retornada para validar o detalhe operacional."
             )
 
-        sources = [item.source for item in retrieved]
+        sources = list(dict.fromkeys(item.source for item in retrieved))
         return message, sources
+
+    def status(self) -> dict:
+        return {
+            "document_count": self._retriever.document_count,
+            "sources": self._retriever.sources,
+            "pdf_ingested": TARIFF_PDF_SOURCE in self._retriever.sources,
+        }
+
+    def _compact_excerpt(self, text: str, limit: int = 220) -> str:
+        compact = re.sub(r"\s+", " ", text).strip()
+        if len(compact) <= limit:
+            return compact
+        return f"{compact[:limit].rstrip()}..."
+
+    def _is_supported_documental_query(self, query: str) -> bool:
+        query_terms = set(self._retriever._tokenize(query))
+        return bool(query_terms & DOCUMENTAL_QUERY_TERMS)
 
 
 knowledge_service = GroundedKnowledgeService()

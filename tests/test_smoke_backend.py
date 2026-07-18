@@ -155,7 +155,17 @@ def test_documental_tariff_question_returns_grounded_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
-    assert "fonte oficial" in body["message"].lower()
+    assert "contexto oficial" in body["message"].lower()
+
+
+def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
+    response = client.get("/v1/mcp/knowledge/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pdf_ingested"] is True
+    assert body["document_count"] > 3
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["sources"]
 
 
 def test_documental_question_without_context_fails_safely() -> None:

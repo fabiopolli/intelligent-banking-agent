@@ -122,3 +122,9 @@ def fetch_observability_status(api_url: str) -> dict:
     response = httpx.get(f"{api_url}/mcp/observability/status", timeout=10.0)
     response.raise_for_status()
     return response.json()
+
+
+def fetch_knowledge_status(api_url: str) -> dict:
+    response = httpx.get(f"{api_url}/mcp/knowledge/status", timeout=10.0)
+    response.raise_for_status()
+    return response.json()
