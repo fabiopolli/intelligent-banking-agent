@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+from app.config import settings
+from app.schemas.harness import HarnessResponse
+from app.schemas.outbound import BalanceResponse, CustomerProfileResponse
+
+
+class ResponseBuilder:
+    def emergency(self, session_id: str, profile: CustomerProfileResponse) -> HarnessResponse:
+        return HarnessResponse(
+            route="emergency",
+            session_id=session_id,
+            message="Seu caso foi priorizado para emergencia. Vamos bloquear o cartao preventivamente.",
+            card_status=profile.card_status,
+        )
+
+    def limit(self, session_id: str, profile: CustomerProfileResponse) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=f"Seu limite atual e R$ {profile.card_limit:.2f}.",
+        )
+
+    def balance(self, session_id: str, balance: BalanceResponse) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=f"Seu saldo atual e R$ {balance.balance:.2f}.",
+        )
+
+    def transaction(self, session_id: str) -> HarnessResponse:
+        return HarnessResponse(
+            route="transaction",
+            session_id=session_id,
+            message="Fluxo de PIX identificado. Confirmacao formal sera necessaria acima do threshold.",
+            hitl_threshold=settings.hitl_pix_threshold,
+        )
+
+    def faq_fast_path(self, session_id: str) -> HarnessResponse:
+        return HarnessResponse(
+            route="faq_fast_path",
+            session_id=session_id,
+            message="Entendi sua pergunta. Esta etapa inicial usa um fast path para respostas estaveis e um harness local demonstravel.",
+        )
