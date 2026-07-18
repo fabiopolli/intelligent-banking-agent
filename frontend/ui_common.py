@@ -116,3 +116,9 @@ def fetch_trace(api_url: str, session_id: str) -> dict:
     response = httpx.get(f"{api_url}/mcp/trace/{session_id}", timeout=10.0)
     response.raise_for_status()
     return response.json()
+
+
+def fetch_observability_status(api_url: str) -> dict:
+    response = httpx.get(f"{api_url}/mcp/observability/status", timeout=10.0)
+    response.raise_for_status()
+    return response.json()

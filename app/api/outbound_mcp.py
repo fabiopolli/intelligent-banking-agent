@@ -8,6 +8,7 @@ from app.schemas.outbound import (
     PixCreateRequest,
 )
 from app.services.mock_bank import mock_bank_service
+from app.services.observability import langsmith_status
 from app.services.trace_store import trace_store
 
 router = APIRouter(tags=["outbound-mocks"])
@@ -50,3 +51,8 @@ def get_last_trace(session_id: str) -> dict:
     if trace is None:
         return {"session_id": session_id, "trace": None}
     return {"session_id": session_id, "trace": trace}
+
+
+@router.get("/mcp/observability/status")
+def get_observability_status() -> dict:
+    return {"langsmith": langsmith_status()}

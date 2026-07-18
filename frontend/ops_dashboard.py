@@ -11,6 +11,7 @@ from frontend.ui_common import (
     configure_page,
     fetch_audit_events,
     fetch_balance,
+    fetch_observability_status,
     fetch_profile,
     fetch_trace,
     render_header,
@@ -113,6 +114,25 @@ def render_audit_panel(api_url: str, customer_id: str) -> None:
             st.json(event)
 
 
+def render_observability_panel(api_url: str) -> None:
+    st.subheader("Observability")
+    try:
+        status = fetch_observability_status(api_url)["langsmith"]
+    except Exception as exc:  # noqa: BLE001
+        st.error(f"Observability lookup failed: {exc}")
+        return
+
+    first, second = st.columns(2)
+    first.metric("LangSmith SDK", "Available" if status["available"] else "Missing")
+    second.metric("Tracing", "Enabled" if status["enabled"] else "Disabled")
+
+    st.caption(f"Project: {status.get('project') or '-'}")
+    st.caption(f"Endpoint: {status.get('endpoint') or '-'}")
+
+    if not status["enabled"]:
+        st.info("Set LANGSMITH_TRACING=true and LANGSMITH_API_KEY to send traces to LangSmith.")
+
+
 def main() -> None:
     configure_page("Agent Ops Dashboard")
     render_header(
@@ -131,6 +151,7 @@ def main() -> None:
     with center:
         render_trace_panel(api_url, session_id)
     with right:
+        render_observability_panel(api_url)
         render_evidence_panel(api_url, session_id)
 
 

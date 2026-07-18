@@ -15,6 +15,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - frontend Streamlit inicial para validação local
 - painel de auditoria crítica e último resultado do agente no frontend
 - Streamlit separado em chat do cliente e painel técnico do avaliador
+- instrumentação opcional LangSmith para traces do Harness, nós, tools e RAG
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
@@ -90,7 +91,19 @@ No painel técnico, valide:
 
 Resultado validado em 18 de julho de 2026:
 
-- `13 passed, 1 warning`
+- `14 passed, 1 warning`
+
+### Observabilidade LangSmith
+
+O projeto roda sem credenciais externas. Para enviar traces ao LangSmith, configure as variáveis antes de iniciar a API:
+
+```powershell
+$env:LANGSMITH_TRACING="true"
+$env:LANGSMITH_API_KEY="<sua-chave>"
+$env:LANGSMITH_PROJECT="itau-intelligent-banking-agent"
+```
+
+O painel técnico mostra o status em `Observability`.
 
 ### Troubleshooting rápido
 
@@ -125,6 +138,7 @@ Checklist rápido:
 
 - o chat do cliente fica separado do painel técnico
 - o último trace do Harness pode ser consultado pelo painel via `/v1/mcp/trace/{session_id}`
+- spans LangSmith opcionais instrumentam Harness, roteamento, nós, PIX, HITL e RAG
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
 - o painel técnico usa refresh manual para reduzir ruído durante a apresentação

@@ -234,6 +234,16 @@ def test_workflow_graph_object_is_available_in_harness() -> None:
     assert harness._workflow_graph is not None
 
 
+def test_observability_status_reports_langsmith_configuration() -> None:
+    response = client.get("/v1/mcp/observability/status")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "langsmith" in body
+    assert "available" in body["langsmith"]
+    assert "enabled" in body["langsmith"]
+
+
 def test_pix_emits_append_only_audit_event() -> None:
     response = client.post(
         "/v1/channels/app/chat",

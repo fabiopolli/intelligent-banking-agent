@@ -12,6 +12,7 @@ from app.security.guardrails import GuardrailsService
 from app.security.rbac import RBACService
 from app.services.checkpoint_store import CheckpointStore, checkpoint_store
 from app.services.intent_router import IntentRouter
+from app.services.observability import traceable
 from app.services.orchestrator import DemoOrchestrator, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
@@ -35,17 +36,22 @@ class DemoHarness:
         self._checkpoints = checkpoints or checkpoint_store
 
     def handle_message(self, payload: ChatRequest) -> dict:
-        self._guardrails_service.validate_message(payload.message)
-        if self._is_confirmation_message(payload.message):
-            response = self._resume_pending_operation(payload)
-            response_payload = response.model_dump()
-            trace_store.record(payload.session_id, response_payload)
-            return response_payload
-        route = self._router.classify(payload.message)
-        response = self._dispatch(route, payload)
+        response = self._handle_message(payload)
         response_payload = response.model_dump()
         trace_store.record(payload.session_id, response_payload)
         return response_payload
+
+    @traceable(name="Agent Harness", run_type="chain")
+    def _handle_message(self, payload: ChatRequest) -> HarnessResponse:
+        self._guardrails_service.validate_message(payload.message)
+        if self._is_confirmation_message(payload.message):
+            return self._resume_pending_operation(payload)
+        route = self._classify_intent(payload.message)
+        return self._dispatch(route, payload)
+
+    @traceable(name="Intent Router", run_type="chain")
+    def _classify_intent(self, message: str) -> str:
+        return self._router.classify(message)
 
     def _dispatch(self, route: str, payload: ChatRequest) -> HarnessResponse:
         auth = AuthContext(customer_id=payload.customer_id, role=payload.role)
