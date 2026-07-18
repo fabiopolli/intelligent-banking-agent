@@ -83,6 +83,9 @@ class MockBankService:
 
     def create_pix(self, payload: PixCreateRequest) -> dict:
         customer = self._require_customer(payload.customer_id)
+        if payload.amount > customer.balance:
+            raise ValueError("Saldo insuficiente para realizar o PIX.")
+
         customer.balance -= payload.amount
         customer.history.append(
             {

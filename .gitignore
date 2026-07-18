@@ -9,3 +9,4 @@ AGENTS.md
 .vscode/
 intelligent_banking_agent.egg-info/
 .docs/
+.runtime/

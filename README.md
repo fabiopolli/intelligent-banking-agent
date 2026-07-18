@@ -81,7 +81,7 @@ Na tela da demo, valide também:
 
 Resultado validado em 18 de julho de 2026:
 
-- `12 passed, 1 warning`
+- `13 passed, 1 warning`
 
 ### Troubleshooting rápido
 
@@ -101,6 +101,7 @@ Checklist rápido:
 - identifica fluxo de PIX
 - executa `PIX` abaixo do threshold diretamente
 - exige confirmação para `PIX` de alto valor
+- rejeita `PIX` sem saldo suficiente, inclusive apos confirmação HITL
 - persiste checkpoint local em `.runtime/checkpoints.json` até a confirmação
 - atualiza saldo stateful após execução
 

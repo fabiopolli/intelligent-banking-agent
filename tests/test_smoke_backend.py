@@ -77,6 +77,34 @@ def test_pix_requires_confirmation_and_updates_balance_after_resume() -> None:
     assert resume_body["balance"] == 18000.0
 
 
+def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation() -> None:
+    checkpoint_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-insufficient-balance",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 70000 para a minha chave",
+        },
+    )
+    assert checkpoint_response.status_code == 200
+    assert checkpoint_response.json()["requires_confirmation"] is True
+
+    resume_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-insufficient-balance",
+            "customer_id": "123",
+            "message": "confirmo",
+        },
+    )
+    assert resume_response.status_code == 400
+    assert "Saldo insuficiente" in resume_response.json()["detail"]
+
+    balance_response = client.get("/v1/mcp/accounts/balance/123")
+    assert balance_response.status_code == 200
+    assert balance_response.json()["balance"] == 25000.0
+
+
 def test_emergency_flow_blocks_card() -> None:
     response = client.post(
         "/v1/channels/app/chat",
