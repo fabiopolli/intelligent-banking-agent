@@ -14,7 +14,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - fluxo de emergência com bloqueio de cartão
 - frontend Streamlit inicial para validação local
 - painel de auditoria crítica e último resultado do agente no frontend
-- shell Streamlit polido com chat, painéis de cliente, trace, evidências e auditoria
+- Streamlit separado em chat do cliente e painel técnico do avaliador
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
@@ -40,9 +40,9 @@ Cada slice deve evoluir:
 
 1. inicie o backend em um terminal
 2. mantenha esse terminal aberto
-3. inicie o frontend em outro terminal
-4. abra a interface do Streamlit
-5. valide snapshot, prompts e respostas do agente
+3. inicie o chat do cliente em outro terminal
+4. opcionalmente inicie o painel técnico em um terceiro terminal
+5. abra os Streamlits lado a lado para validar chat, estado, trace e auditoria
 
 ### Backend
 
@@ -55,22 +55,31 @@ Quando estiver saudável, o backend deve ficar disponível em:
 - `http://127.0.0.1:8000`
 - `http://127.0.0.1:8000/docs`
 
-### Frontend
+### Chat do Cliente
 
 ```powershell
-.\.venv\Scripts\python -m streamlit run frontend/streamlit_app.py
+.\.venv\Scripts\python -m streamlit run frontend/customer_chat.py --server.address 127.0.0.1 --server.port 8501
 ```
 
-No frontend, confira se a sidebar está apontando para:
+Quando estiver saudável, o chat deve ficar disponível em:
 
-- `API URL = http://localhost:8000/v1`
+- `http://127.0.0.1:8501`
 
-Na tela da demo, valide também:
+### Painel Técnico
 
-- `Customer` para saldo, limite, segmento e status do cartão
-- `Agent Console` para chat e prompts rápidos por caso de uso
+```powershell
+.\.venv\Scripts\python -m streamlit run frontend/ops_dashboard.py --server.address 127.0.0.1 --server.port 8502
+```
+
+Quando estiver saudável, o painel deve ficar disponível em:
+
+- `http://127.0.0.1:8502`
+
+No painel técnico, valide:
+
+- `Customer State` para saldo, limite, segmento e status do cartão
 - `Harness Trace` para rota, latência, HITL e fontes
-- `Evidence` para fontes oficiais retornadas pelo RAG
+- `RAG Evidence` para fontes oficiais retornadas pelo RAG
 - `Critical Audit` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 
 ### Testes
@@ -114,11 +123,11 @@ Checklist rápido:
 
 ### Observabilidade Local da Demo
 
-- a última rota selecionada pelo Harness fica visível na interface
-- a latência da chamada do agente aparece no painel `Harness Trace`
+- o chat do cliente fica separado do painel técnico
+- o último trace do Harness pode ser consultado pelo painel via `/v1/mcp/trace/{session_id}`
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
-- snapshot e auditoria usam cache de sessão e refresh manual para reduzir reruns desnecessários
+- o painel técnico usa refresh manual para reduzir ruído durante a apresentação
 
 ### FAQ Fast Path
 

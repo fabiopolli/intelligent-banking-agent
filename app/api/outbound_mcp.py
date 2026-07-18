@@ -8,6 +8,7 @@ from app.schemas.outbound import (
     PixCreateRequest,
 )
 from app.services.mock_bank import mock_bank_service
+from app.services.trace_store import trace_store
 
 router = APIRouter(tags=["outbound-mocks"])
 
@@ -41,3 +42,11 @@ def create_pix(payload: PixCreateRequest) -> dict:
 @router.get("/mcp/audit/{customer_id}", response_model=list[AuditEventResponse])
 def get_audit_events(customer_id: str) -> list[AuditEventResponse]:
     return mock_bank_service.get_audit_events(customer_id)
+
+
+@router.get("/mcp/trace/{session_id}")
+def get_last_trace(session_id: str) -> dict:
+    trace = trace_store.get(session_id)
+    if trace is None:
+        return {"session_id": session_id, "trace": None}
+    return {"session_id": session_id, "trace": trace}

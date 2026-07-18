@@ -21,6 +21,10 @@ def test_chat_balance_smoke() -> None:
     assert body["route"] == "core_banking"
     assert "saldo" in body["message"].lower()
 
+    trace_response = client.get("/v1/mcp/trace/sess-1")
+    assert trace_response.status_code == 200
+    assert trace_response.json()["trace"]["route"] == "core_banking"
+
 
 def test_stateful_limit_update_smoke() -> None:
     update_response = client.post(
