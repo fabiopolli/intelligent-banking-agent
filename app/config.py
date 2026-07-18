@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/v1"
     hitl_pix_threshold: float = Field(default=5000.0, ge=0)
     default_user_role: str = "customer"
+    checkpoint_store_path: str = ".runtime/checkpoints.json"
 
 
 settings = Settings()

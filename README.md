@@ -10,6 +10,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - mocks internos stateful
 - harness com RBAC e guardrails
 - fluxo de PIX com HITL para alto valor
+- checkpoints HITL persistidos localmente para retomada de operacoes pendentes
 - fluxo de emergência com bloqueio de cartão
 - frontend Streamlit inicial para validação local
 - painel de auditoria crítica e último resultado do agente no frontend
@@ -76,7 +77,7 @@ Na tela da demo, valide também:
 
 Resultado validado em 18 de julho de 2026:
 
-- `9 passed, 1 warning`
+- `10 passed, 1 warning`
 
 ### Troubleshooting rápido
 
@@ -96,6 +97,7 @@ Checklist rápido:
 - identifica fluxo de PIX
 - executa `PIX` abaixo do threshold diretamente
 - exige confirmação para `PIX` de alto valor
+- persiste checkpoint local em `.runtime/checkpoints.json` até a confirmação
 - atualiza saldo stateful após execução
 
 ### Cartões e Emergência
@@ -118,8 +120,6 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- adicionar estratégia de checkpoint persistente para HITL
-- executar QA smoke do slice de auditoria visível no frontend
 - implementar slice documental com RAG híbrido
 - expandir frontend por slice
 - consolidar documentação final para PR

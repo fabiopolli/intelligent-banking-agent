@@ -10,6 +10,7 @@ from app.schemas.messages import ChatRequest
 from app.schemas.outbound import PixCreateRequest
 from app.security.guardrails import GuardrailsService
 from app.security.rbac import RBACService
+from app.services.checkpoint_store import CheckpointStore, checkpoint_store
 from app.services.intent_router import IntentRouter
 from app.services.orchestrator import DemoOrchestrator, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
@@ -22,6 +23,7 @@ class DemoHarness:
         response_builder: ResponseBuilder | None = None,
         rbac_service: RBACService | None = None,
         guardrails_service: GuardrailsService | None = None,
+        checkpoints: CheckpointStore | None = None,
     ) -> None:
         self._router = router or IntentRouter()
         self._response_builder = response_builder or ResponseBuilder()
@@ -29,7 +31,7 @@ class DemoHarness:
         self._guardrails_service = guardrails_service or GuardrailsService()
         self._orchestrator = DemoOrchestrator(self._response_builder, self._rbac_service)
         self._workflow_graph = DemoWorkflowGraph(self._orchestrator)
-        self._pending_pix_operations: dict[str, PendingPixOperation] = {}
+        self._checkpoints = checkpoints or checkpoint_store
 
     def handle_message(self, payload: ChatRequest) -> dict:
         self._guardrails_service.validate_message(payload.message)
@@ -46,10 +48,13 @@ class DemoHarness:
         if route == "transaction":
             pix_request = self._build_pix_request(payload)
             if pix_request.amount >= settings.hitl_pix_threshold:
-                self._pending_pix_operations[payload.session_id] = PendingPixOperation(
-                    customer_id=payload.customer_id,
-                    amount=pix_request.amount,
-                    destination_key=pix_request.destination_key,
+                self._checkpoints.save_pending_pix(
+                    payload.session_id,
+                    PendingPixOperation(
+                        customer_id=payload.customer_id,
+                        amount=pix_request.amount,
+                        destination_key=pix_request.destination_key,
+                    ),
                 )
                 return self._workflow_graph.checkpoint(payload.session_id)
             return self._workflow_graph.invoke(payload, auth, route, pix_request=pix_request)
@@ -57,7 +62,7 @@ class DemoHarness:
         return self._workflow_graph.invoke(payload, auth, route)
 
     def _resume_pending_operation(self, payload: ChatRequest) -> HarnessResponse:
-        pending = self._pending_pix_operations.get(payload.session_id)
+        pending = self._checkpoints.get_pending_pix(payload.session_id)
         if pending is None:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
 
@@ -67,7 +72,7 @@ class DemoHarness:
             "transaction",
             pending_operation=pending,
         )
-        self._pending_pix_operations.pop(payload.session_id, None)
+        self._checkpoints.consume_pending_pix(payload.session_id)
         return response
 
     def _build_pix_request(self, payload: ChatRequest) -> PixCreateRequest:

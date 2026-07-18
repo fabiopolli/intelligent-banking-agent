@@ -2,6 +2,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.api.inbound import harness
+from app.schemas.messages import ChatRequest
+from app.services.harness import DemoHarness
 from app.services.mock_bank import mock_bank_service
 
 
@@ -136,6 +138,30 @@ def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> 
         },
     )
     assert second_confirmation.status_code == 400
+
+
+def test_pending_pix_checkpoint_survives_harness_recreation() -> None:
+    first_harness = DemoHarness()
+    checkpoint = first_harness.handle_message(
+        ChatRequest(
+            session_id="sess-persisted",
+            customer_id="123",
+            message="Quero fazer um pix de 7000 para a minha chave",
+        )
+    )
+    assert checkpoint["requires_confirmation"] is True
+
+    recreated_harness = DemoHarness()
+    resumed = recreated_harness.handle_message(
+        ChatRequest(
+            session_id="sess-persisted",
+            customer_id="123",
+            message="confirmo",
+        )
+    )
+
+    assert resumed["route"] == "transaction"
+    assert resumed["balance"] == 18000.0
 
 
 def test_workflow_graph_object_is_available_in_harness() -> None:
