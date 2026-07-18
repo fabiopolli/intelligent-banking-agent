@@ -14,6 +14,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - fluxo de emergência com bloqueio de cartão
 - frontend Streamlit inicial para validação local
 - painel de auditoria crítica e último resultado do agente no frontend
+- shell Streamlit polido com chat, painéis de cliente, trace, evidências e auditoria
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
@@ -66,10 +67,11 @@ No frontend, confira se a sidebar está apontando para:
 
 Na tela da demo, valide também:
 
-- `Customer Snapshot` para perfil e saldo atualizados
-- `Last Agent Result` para rota, checkpoint e payload retornado pelo Harness
-- `Critical Audit Trail` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
-- `Grounding` no `Last Agent Result` ao usar os prompts `RAG tarifas` e `RAG sem contexto`
+- `Customer` para saldo, limite, segmento e status do cartão
+- `Agent Console` para chat e prompts rápidos por caso de uso
+- `Harness Trace` para rota, latência, HITL e fontes
+- `Evidence` para fontes oficiais retornadas pelo RAG
+- `Critical Audit` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 
 ### Testes
 
@@ -112,8 +114,10 @@ Checklist rápido:
 ### Observabilidade Local da Demo
 
 - a última rota selecionada pelo Harness fica visível na interface
-- checkpoints de confirmação aparecem no resumo do último resultado
+- a latência da chamada do agente aparece no painel `Harness Trace`
+- checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
+- snapshot e auditoria usam cache de sessão e refresh manual para reduzir reruns desnecessários
 
 ### FAQ Fast Path
 
@@ -125,5 +129,5 @@ Checklist rápido:
 ## Próximos Passos
 
 - ingerir o PDF de tarifas completo no pipeline documental
-- expandir frontend por slice
+- adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
 - consolidar documentação final para PR
