@@ -24,6 +24,9 @@ Em 18 de julho de 2026, o projeto já possui:
 - respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e primeira sintese grounded para `Saque conta corrente`
 - RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
 - provider OpenAI opcional para FAQ/RAG grounded via Responses API, desligado por padrao e com fallback local deterministico
+- MCP-style internal tool boundary protegido por `X-Internal-Tool-Key`, com registry de tools e resources oficiais
+- observabilidade de prompt, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo no trace tecnico
+- auditoria critica com `user`, `action`, `amount`, `timestamp` e hash encadeado append-only
 - GitHub Actions verde apos estabilizacao dos testes de RAG em ambiente sem cache runtime
 
 ## Estratégia de Entrega
@@ -83,7 +86,7 @@ Quando estiver saudável, o painel deve ficar disponível em:
 No painel técnico, valide:
 
 - `Customer State` para saldo, limite, segmento e status do cartão
-- `Harness Trace` para rota, latência, HITL e fontes
+- `Harness Trace` para rota, latência, HITL, fontes, tools chamadas, prompt/contexto LLM e token usage
 - `Knowledge Base` para contagem de documentos ingeridos e status do PDF
 - `RAG Evidence` para fontes oficiais retornadas pelo RAG
 - `Critical Audit` para eventos append-only de `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
@@ -96,7 +99,27 @@ No painel técnico, valide:
 
 Resultado validado em 18 de julho de 2026:
 
-- `23 passed, 1 warning`
+- `27 passed, 2 warnings`
+
+### Docker Compose
+
+```powershell
+docker compose up --build
+```
+
+Servicos previstos:
+
+- API: `http://localhost:8000`
+- Chat do cliente: `http://localhost:8501`
+- Painel tecnico: `http://localhost:8502`
+
+O Compose sobe API, chat e painel tecnico. Os Streamlits usam `DEFAULT_API_URL=http://api:8000/v1` dentro da rede Docker. Se usar uma chave interna diferente da demo, configure:
+
+```powershell
+$env:INTERNAL_TOOL_API_KEY="<chave-interna>"
+```
+
+Como `.docs/` contem arquivos locais grandes, o Docker Compose monta essa pasta como volume read-only em `/app/.docs`. Assim a demo local usa o PDF real de tarifas, enquanto o `docker build` do CI continua reprodutivel mesmo sem versionar o PDF no Git.
 
 ### Observabilidade LangSmith
 
@@ -122,6 +145,37 @@ $env:LLM_MODEL="gpt-5.6-luna"
 ```
 
 Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro.
+
+## MCP, Tools e Resources
+
+O projeto expõe uma fronteira MCP-style para representar os sistemas internos do desafio sem permitir que a LLM execute operações diretamente.
+
+Endpoints tecnicos protegidos:
+
+- `GET /v1/mcp/tools`
+- `GET /v1/mcp/resources`
+- `GET /v1/mcp/users/profile/{customer_id}`
+- `GET /v1/mcp/accounts/balance/{customer_id}`
+- `POST /v1/mcp/cards/limit`
+- `POST /v1/mcp/payments/pix`
+- `GET /v1/mcp/audit/{customer_id}`
+- `GET /v1/mcp/trace/{session_id}`
+- `GET /v1/mcp/knowledge/status`
+- `GET /v1/mcp/observability/status`
+
+Todos exigem header:
+
+```text
+X-Internal-Tool-Key: demo-internal-tool-key
+```
+
+Arquitetura intencional:
+
+```text
+LLM -> Harness -> RBAC / HITL / Audit / Guardrails -> MCP-style tool boundary -> mocks internos
+```
+
+O PDF de tarifas nao vira uma tool transacional. Ele e tratado como resource documental oficial (`itau://knowledge/tariff-pdf`) ingerido pelo RAG e exposto no registry MCP-style.
 
 ### Troubleshooting rápido
 
@@ -159,6 +213,7 @@ Checklist rápido:
 - spans LangSmith opcionais instrumentam Harness, roteamento, nós, PIX, HITL e RAG
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
+- o trace tecnico mostra prompt, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo quando o fluxo usa LLM/RAG
 - o painel técnico usa refresh manual para reduzir ruído durante a apresentação
 
 ### FAQ Fast Path
@@ -177,13 +232,18 @@ Checklist rápido:
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
 
+### Auditoria Critica
+
+- toda acao critica gera evento append-only
+- `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED` ficam visiveis no painel tecnico
+- eventos incluem `user`, `action`, `amount`, `timestamp`, payload original e hash encadeado
+- o hash encadeado (`previous_hash` e `event_hash`) demonstra imutabilidade sequencial para a demo
+
 ## Próximos Passos
 
 - validar manualmente `SLICE-LLM-GROUNDED-FAQ` com `OPENAI_API_KEY` real, mantendo o mesmo contrato de contexto aprovado
-- manter Harness, RBAC, retrieval, source filtering, fallback e envelope de resposta fora da LLM
-- enviar para a LLM apenas contexto aprovado de fontes oficiais recuperadas
-- safe-fail quando nao houver contexto oficial suficiente, sem improvisar tarifa, regra ou valor
-- expor no painel tecnico retrieval, contexto enviado, resposta sintetizada, guardrail/fallback e fontes
+- com Docker Desktop ativo, validar `docker compose up --build` localmente
+- acompanhar GitHub Actions para confirmar `pytest` e `docker build`
 - depois da LLM documental, expandir multi-turno de RAG para servico, tipo de conta, pacote e canal
 - depois disso, evoluir PIX para fluxo realista com chave, destinatario, confirmacao sensivel e autenticacao simulada por app
 - consolidar README final, evidencias de teste, Tech Lead review e PR para `main`

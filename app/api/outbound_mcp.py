@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.schemas.outbound import (
     AuditEventResponse,
@@ -7,12 +7,24 @@ from app.schemas.outbound import (
     CustomerProfileResponse,
     PixCreateRequest,
 )
+from app.security.internal_tools import require_internal_tool_key
 from app.services.mock_bank import mock_bank_service
+from app.services.mcp_registry import mcp_tool_registry
 from app.services.observability import langsmith_status
 from app.services.knowledge_base import knowledge_service
 from app.services.trace_store import trace_store
 
-router = APIRouter(tags=["outbound-mocks"])
+router = APIRouter(tags=["outbound-mocks"], dependencies=[Depends(require_internal_tool_key)])
+
+
+@router.get("/mcp/tools")
+def list_mcp_tools() -> dict:
+    return {"tools": mcp_tool_registry.list_tools()}
+
+
+@router.get("/mcp/resources")
+def list_mcp_resources() -> dict:
+    return {"resources": mcp_tool_registry.list_resources()}
 
 
 @router.get("/mcp/users/profile/{customer_id}", response_model=CustomerProfileResponse)

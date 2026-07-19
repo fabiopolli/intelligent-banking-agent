@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import os
+
 import httpx
 import streamlit as st
 
 
-DEFAULT_API_URL = "http://localhost:8000/v1"
+DEFAULT_API_URL = os.getenv("DEFAULT_API_URL", "http://localhost:8000/v1")
 DEFAULT_SESSION_ID = "demo-session-001"
 DEFAULT_CUSTOMER_ID = "123"
+DEFAULT_INTERNAL_TOOL_KEY = os.getenv("INTERNAL_TOOL_API_KEY", "demo-internal-tool-key")
 
 PROMPTS = {
     "Tarifas": "Onde consulto tarifas e pacotes de servicos?",
@@ -95,36 +98,76 @@ def send_chat_message(api_url: str, session_id: str, customer_id: str, role: str
 
 
 def fetch_profile(api_url: str, customer_id: str) -> dict:
-    response = httpx.get(f"{api_url}/mcp/users/profile/{customer_id}", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/users/profile/{customer_id}",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
 
 
 def fetch_balance(api_url: str, customer_id: str) -> dict:
-    response = httpx.get(f"{api_url}/mcp/accounts/balance/{customer_id}", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/accounts/balance/{customer_id}",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
 
 
 def fetch_audit_events(api_url: str, customer_id: str) -> list[dict]:
-    response = httpx.get(f"{api_url}/mcp/audit/{customer_id}", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/audit/{customer_id}",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
 
 
 def fetch_trace(api_url: str, session_id: str) -> dict:
-    response = httpx.get(f"{api_url}/mcp/trace/{session_id}", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/trace/{session_id}",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
 
 
 def fetch_observability_status(api_url: str) -> dict:
-    response = httpx.get(f"{api_url}/mcp/observability/status", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/observability/status",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
 
 
 def fetch_knowledge_status(api_url: str) -> dict:
-    response = httpx.get(f"{api_url}/mcp/knowledge/status", timeout=10.0)
+    response = httpx.get(
+        f"{api_url}/mcp/knowledge/status",
+        headers=_internal_tool_headers(),
+        timeout=10.0,
+    )
     response.raise_for_status()
     return response.json()
+
+
+def fetch_mcp_tools(api_url: str) -> dict:
+    response = httpx.get(f"{api_url}/mcp/tools", headers=_internal_tool_headers(), timeout=10.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def fetch_mcp_resources(api_url: str) -> dict:
+    response = httpx.get(f"{api_url}/mcp/resources", headers=_internal_tool_headers(), timeout=10.0)
+    response.raise_for_status()
+    return response.json()
+
+
+def _internal_tool_headers() -> dict[str, str]:
+    return {"X-Internal-Tool-Key": DEFAULT_INTERNAL_TOOL_KEY}

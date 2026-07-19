@@ -32,3 +32,8 @@ class AuditEventResponse(BaseModel):
     event_type: str
     timestamp: str
     payload: dict
+    user: str
+    action: str
+    amount: float | None = None
+    previous_hash: str | None = None
+    event_hash: str

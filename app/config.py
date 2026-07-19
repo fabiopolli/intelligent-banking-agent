@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=20.0, gt=0)
     llm_context_char_limit: int = Field(default=3000, ge=500)
     openai_api_key: str | None = None
+    internal_tool_api_key: str = Field(default="demo-internal-tool-key", min_length=8)
 
 
 settings = Settings()

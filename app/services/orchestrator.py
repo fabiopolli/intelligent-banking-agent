@@ -119,10 +119,13 @@ class FaqNode:
 
     @traceable(name="Grounded Knowledge Node", run_type="retriever")
     def _handle(self, payload: ChatRequest) -> HarnessResponse:
-        message, sources = self._grounded_knowledge.answer(payload.message)
-        if not sources:
-            return self._response_builder.grounded_knowledge(payload.session_id, message, sources)
-        return self._response_builder.grounded_knowledge(payload.session_id, message, sources)
+        answer = self._grounded_knowledge.answer_with_trace(payload.message)
+        return self._response_builder.grounded_knowledge(
+            payload.session_id,
+            answer["message"],
+            answer["sources"],
+            answer["observability"],
+        )
 
 
 class DemoOrchestrator:

@@ -53,10 +53,17 @@ class ResponseBuilder:
             message="Entendi sua pergunta. Esta etapa inicial usa um fast path para respostas estaveis e um harness local demonstravel.",
         )
 
-    def grounded_knowledge(self, session_id: str, message: str, sources: list[str]) -> HarnessResponse:
+    def grounded_knowledge(
+        self,
+        session_id: str,
+        message: str,
+        sources: list[str],
+        observability: dict | None = None,
+    ) -> HarnessResponse:
         return HarnessResponse(
             route="faq_fast_path",
             session_id=session_id,
             message=message,
             grounding_sources=sources,
+            observability=observability or {},
         )

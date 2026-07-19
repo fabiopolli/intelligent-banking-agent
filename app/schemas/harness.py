@@ -11,3 +11,4 @@ class HarnessResponse(BaseModel):
     pending_operation: str | None = None
     balance: float | None = None
     grounding_sources: list[str] = Field(default_factory=list)
+    observability: dict = Field(default_factory=dict)

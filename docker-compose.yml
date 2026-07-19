@@ -3,7 +3,53 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file:
-      - .env
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
     ports:
       - "8000:8000"
+    volumes:
+      - ./.docs:/app/.docs:ro
+
+  customer-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      DEFAULT_API_URL: http://api:8000/v1
+    command:
+      - streamlit
+      - run
+      - frontend/customer_chat.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    volumes:
+      - ./.docs:/app/.docs:ro
+
+  ops-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      DEFAULT_API_URL: http://api:8000/v1
+    command:
+      - streamlit
+      - run
+      - frontend/ops_dashboard.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8502"
+    ports:
+      - "8502:8502"
+    depends_on:
+      - api
+    volumes:
+      - ./.docs:/app/.docs:ro

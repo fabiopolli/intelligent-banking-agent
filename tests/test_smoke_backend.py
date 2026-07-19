@@ -11,6 +11,7 @@ from app.services.mock_bank import mock_bank_service
 
 
 client = TestClient(app)
+INTERNAL_TOOL_HEADERS = {"X-Internal-Tool-Key": settings.internal_tool_api_key}
 
 
 class RecordingSynthesizer:
@@ -35,24 +36,47 @@ def test_chat_balance_smoke() -> None:
     assert body["route"] == "core_banking"
     assert "saldo" in body["message"].lower()
 
-    trace_response = client.get("/v1/mcp/trace/sess-1")
+    trace_response = client.get("/v1/mcp/trace/sess-1", headers=INTERNAL_TOOL_HEADERS)
     assert trace_response.status_code == 200
     assert trace_response.json()["trace"]["route"] == "core_banking"
+
+
+def test_internal_mcp_endpoints_require_tool_key() -> None:
+    response = client.get("/v1/mcp/users/profile/123")
+
+    assert response.status_code == 403
+    assert "Internal tool API key" in response.json()["detail"]
+
+
+def test_mcp_tool_registry_exposes_banking_tools_and_resources() -> None:
+    tools_response = client.get("/v1/mcp/tools", headers=INTERNAL_TOOL_HEADERS)
+    resources_response = client.get("/v1/mcp/resources", headers=INTERNAL_TOOL_HEADERS)
+
+    assert tools_response.status_code == 200
+    assert resources_response.status_code == 200
+    tools = tools_response.json()["tools"]
+    resources = resources_response.json()["resources"]
+    create_pix = next(tool for tool in tools if tool["name"] == "create_pix")
+    assert create_pix["requires_rbac"] is True
+    assert create_pix["requires_hitl"] is True
+    assert create_pix["audited"] is True
+    assert any(resource["uri"] == "itau://knowledge/tariff-pdf" for resource in resources)
 
 
 def test_stateful_limit_update_smoke() -> None:
     update_response = client.post(
         "/v1/mcp/cards/limit",
         json={"customer_id": "123", "new_limit": 15000},
+        headers=INTERNAL_TOOL_HEADERS,
     )
     assert update_response.status_code == 200
     assert update_response.json()["card_limit"] == 15000
 
-    profile_response = client.get("/v1/mcp/users/profile/123")
+    profile_response = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
     assert profile_response.status_code == 200
     assert profile_response.json()["card_limit"] == 15000
 
-    audit_response = client.get("/v1/mcp/audit/123")
+    audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
     audit_body = audit_response.json()
     assert audit_body[-1]["event_type"] == "LIMIT_CHANGE"
@@ -118,7 +142,7 @@ def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation
     assert resume_response.status_code == 400
     assert "Saldo insuficiente" in resume_response.json()["detail"]
 
-    balance_response = client.get("/v1/mcp/accounts/balance/123")
+    balance_response = client.get("/v1/mcp/accounts/balance/123", headers=INTERNAL_TOOL_HEADERS)
     assert balance_response.status_code == 200
     assert balance_response.json()["balance"] == 25000.0
 
@@ -134,7 +158,7 @@ def test_emergency_flow_blocks_card() -> None:
     assert body["card_status"] == "BLOCKED"
     history = mock_bank_service.get_service_history("123")
     assert history[-1]["action"] == "CARD_BLOCKED"
-    audit_response = client.get("/v1/mcp/audit/123")
+    audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
     assert audit_response.json()[-1]["event_type"] == "CARD_BLOCKED"
 
@@ -235,7 +259,7 @@ def test_documental_tariff_followup_with_context_does_not_loop() -> None:
 
 
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
-    response = client.get("/v1/mcp/knowledge/status")
+    response = client.get("/v1/mcp/knowledge/status", headers=INTERNAL_TOOL_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -262,6 +286,9 @@ def test_documental_help_center_question_returns_official_source() -> None:
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in body["grounding_sources"]
     assert body["grounding_sources"] == ["https://www.itau.com.br/atendimento-itau/para-voce"]
     assert "orientacao oficial" in body["message"].lower()
+    assert "hybrid_retrieve" in body["observability"]["tools_called"]
+    assert body["observability"]["llm"]["provider"] == "disabled"
+    assert body["observability"]["retrieval"]["approved_context"]
 
 
 def test_grounded_faq_synthesizer_receives_only_retrieved_official_context() -> None:
@@ -309,6 +336,11 @@ def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> 
 
     assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
     assert "fontes oficiais recuperadas" in message.lower()
+    assert synthesizer.last_trace["provider"] == "openai-responses"
+    assert synthesizer.last_trace["fallback_used"] is True
+    assert synthesizer.last_trace["fallback_reason"] == "missing_api_key"
+    assert synthesizer.last_trace["prompt"]
+    assert synthesizer.last_trace["approved_context"]
 
 
 def test_openai_grounded_prompt_contains_only_question_and_official_context() -> None:
@@ -423,7 +455,7 @@ def test_workflow_graph_object_is_available_in_harness() -> None:
 
 
 def test_observability_status_reports_langsmith_configuration() -> None:
-    response = client.get("/v1/mcp/observability/status")
+    response = client.get("/v1/mcp/observability/status", headers=INTERNAL_TOOL_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -443,8 +475,13 @@ def test_pix_emits_append_only_audit_event() -> None:
     )
     assert response.status_code == 200
 
-    audit_response = client.get("/v1/mcp/audit/123")
+    audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
     audit_body = audit_response.json()
     assert audit_body[-1]["event_type"] == "PIX"
     assert audit_body[-1]["payload"]["amount"] == 100.0
+    assert audit_body[-1]["user"] == "123"
+    assert audit_body[-1]["action"] == "PIX"
+    assert audit_body[-1]["amount"] == 100.0
+    assert audit_body[-1]["timestamp"]
+    assert len(audit_body[-1]["event_hash"]) == 64

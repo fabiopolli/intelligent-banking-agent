@@ -23,3 +23,6 @@ jobs:
 
       - name: Run tests
         run: pytest -q
+
+      - name: Build Docker image
+        run: docker build -t intelligent-banking-agent:ci .

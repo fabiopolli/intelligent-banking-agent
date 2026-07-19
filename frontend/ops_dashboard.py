@@ -60,11 +60,18 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     route = trace.get("route", "unknown")
     requires_confirmation = "Yes" if trace.get("requires_confirmation") else "No"
     source_count = len(trace.get("grounding_sources") or [])
+    observability = trace.get("observability") or {}
+    tools_called = observability.get("tools_called") or []
+    llm = observability.get("llm") or {}
 
     first, second, third = st.columns(3)
     first.metric("Route", route)
     second.metric("HITL", requires_confirmation)
     third.metric("Sources", source_count)
+    fourth, fifth, sixth = st.columns(3)
+    fourth.metric("Tools", len(tools_called))
+    fifth.metric("LLM", llm.get("provider") or "disabled")
+    sixth.metric("Fallback", "Yes" if llm.get("fallback_used") else "No")
 
     pending = trace.get("pending_operation")
     if pending:
@@ -78,6 +85,33 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
 
     with st.expander("Trace payload", expanded=False):
         st.code(json.dumps(trace, indent=2, ensure_ascii=False), language="json")
+
+    with st.expander("Observability: tools, prompt, context and tokens", expanded=False):
+        st.markdown("**Tools called**")
+        st.code(json.dumps(tools_called, indent=2, ensure_ascii=False), language="json")
+        st.markdown("**LLM provider**")
+        st.code(
+            json.dumps(
+                {
+                    "provider": llm.get("provider"),
+                    "model": llm.get("model"),
+                    "fallback_used": llm.get("fallback_used"),
+                    "fallback_reason": llm.get("fallback_reason"),
+                    "token_usage": llm.get("token_usage"),
+                    "duration_ms": llm.get("duration_ms"),
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            language="json",
+        )
+        if llm.get("prompt"):
+            st.markdown("**Prompt sent to LLM**")
+            st.code(llm["prompt"], language="text")
+        approved_context = llm.get("approved_context") or observability.get("retrieval", {}).get("approved_context")
+        if approved_context:
+            st.markdown("**Approved context**")
+            st.code(json.dumps(approved_context, indent=2, ensure_ascii=False), language="json")
 
 
 def render_evidence_panel(api_url: str, session_id: str) -> None:
