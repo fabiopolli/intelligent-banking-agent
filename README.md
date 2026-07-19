@@ -160,6 +160,11 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
-- expandir a sintese grounded de tarifas para mais servicos, valores e caminhos no app quando houver evidência tabular confiável
-- consolidar documentação final para PR
+- `SLICE-LLM-GROUNDED-FAQ`: primeira integracao real com LLM, limitada a respostas documentais de FAQ/RAG
+- manter Harness, RBAC, retrieval, source filtering, fallback e envelope de resposta fora da LLM
+- enviar para a LLM apenas contexto aprovado de fontes oficiais recuperadas
+- safe-fail quando nao houver contexto oficial suficiente, sem improvisar tarifa, regra ou valor
+- expor no painel tecnico retrieval, contexto enviado, resposta sintetizada, guardrail/fallback e fontes
+- depois da LLM documental, expandir multi-turno de RAG para servico, tipo de conta, pacote e canal
+- depois disso, evoluir PIX para fluxo realista com chave, destinatario, confirmacao sensivel e autenticacao simulada por app
+- consolidar README final, evidencias de teste, Tech Lead review e PR para `main`
