@@ -155,7 +155,26 @@ def test_documental_tariff_question_returns_grounded_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
-    assert "contexto oficial" in body["message"].lower()
+    assert "referencia oficial" in body["message"].lower()
+    assert "tabela em pdf" in body["message"].lower()
+
+
+def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-saque",
+            "customer_id": "123",
+            "message": "Tem tarifa para saque?",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert "saques" in body["message"].lower()
+    assert "fonte recuperada" in body["message"].lower()
 
 
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
@@ -165,6 +184,7 @@ def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
     body = response.json()
     assert body["pdf_ingested"] is True
     assert body["web_sources_loaded"] is True
+    assert body["reranker"] == "local-intent-reranker"
     assert body["document_count"] > 3
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["sources"]
 
@@ -183,6 +203,7 @@ def test_documental_help_center_question_returns_official_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in body["grounding_sources"]
+    assert body["grounding_sources"] == ["https://www.itau.com.br/atendimento-itau/para-voce"]
     assert "orientacao oficial" in body["message"].lower()
 
 

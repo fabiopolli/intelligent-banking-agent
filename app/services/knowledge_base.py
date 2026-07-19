@@ -370,9 +370,59 @@ class LocalHybridRetriever:
         ]
 
 
+class LocalReranker:
+    def rerank(self, query: str, candidates: list[RetrievedKnowledge]) -> list[RetrievedKnowledge]:
+        query_terms = set(self._tokenize(query))
+        ranked = [
+            RetrievedKnowledge(
+                title=candidate.title,
+                source=candidate.source,
+                text=candidate.text,
+                score=candidate.score + self._intent_bonus(query_terms, candidate),
+            )
+            for candidate in candidates
+        ]
+        return sorted(ranked, key=lambda item: item.score, reverse=True)
+
+    def _intent_bonus(self, query_terms: set[str], candidate: RetrievedKnowledge) -> float:
+        candidate_terms = set(self._tokenize(f"{candidate.title} {candidate.text}"))
+        bonus = 0.0
+
+        if query_terms & {"tarifa", "tarifas", "pacote", "pacotes", "saque", "servicos"}:
+            if candidate.source == TARIFF_PDF_SOURCE:
+                bonus += 2.0
+            if candidate_terms & {"valor", "individual", "pacote", "servicos", "vigencia"}:
+                bonus += 0.8
+
+        if query_terms & {"whatsapp", "chat", "atendimento", "duvidas"}:
+            if candidate.source == HELP_CENTER_SOURCE:
+                bonus += 2.0
+
+        if query_terms & {"politica", "politicas", "governanca", "integridade", "etica"}:
+            if candidate.source == POLICIES_SOURCE:
+                bonus += 2.0
+
+        overlap = len(query_terms & candidate_terms)
+        bonus += min(overlap * 0.25, 1.5)
+        return bonus
+
+    def _tokenize(self, text: str) -> list[str]:
+        normalized = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
+        return [
+            token
+            for token in re.findall(r"[a-z0-9]+", normalized)
+            if len(token) > 2 and token not in RAG_STOPWORDS
+        ]
+
+
 class GroundedKnowledgeService:
-    def __init__(self, retriever: LocalHybridRetriever | None = None) -> None:
+    def __init__(
+        self,
+        retriever: LocalHybridRetriever | None = None,
+        reranker: LocalReranker | None = None,
+    ) -> None:
         self._retriever = retriever or LocalHybridRetriever()
+        self._reranker = reranker or LocalReranker()
 
     def answer(self, query: str) -> tuple[str, list[str]]:
         if not self._is_supported_documental_query(query):
@@ -382,7 +432,7 @@ class GroundedKnowledgeService:
                 [],
             )
 
-        retrieved = self._retriever.retrieve(query)
+        retrieved = self._reranker.rerank(query, self._retriever.retrieve(query, top_k=6))[:2]
         if not retrieved or retrieved[0].score < 0.65:
             return (
                 "Nao encontrei contexto oficial suficiente para responder com seguranca. "
@@ -393,10 +443,7 @@ class GroundedKnowledgeService:
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
         if "tarifa" in query.lower() or "pacote" in query.lower():
-            message = (
-                "Para tarifas e pacotes, a resposta deve ser conferida na tabela geral de tarifas PF. "
-                f"Encontrei contexto oficial no trecho: {excerpt}"
-            )
+            message = self._build_tariff_answer(query, primary)
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
                 "Para politicas institucionais, encontrei a fonte oficial de relacoes com investidores "
@@ -420,6 +467,7 @@ class GroundedKnowledgeService:
                 source in self._retriever.sources
                 for source in [HELP_CENTER_SOURCE, POLICIES_SOURCE]
             ),
+            "reranker": "local-intent-reranker",
         }
 
     def _compact_excerpt(self, text: str, limit: int = 220) -> str:
@@ -431,6 +479,33 @@ class GroundedKnowledgeService:
     def _is_supported_documental_query(self, query: str) -> bool:
         query_terms = set(self._retriever._tokenize(query))
         return bool(query_terms & DOCUMENTAL_QUERY_TERMS)
+
+    def _build_tariff_answer(self, query: str, primary: RetrievedKnowledge) -> str:
+        page_hint = self._extract_page_hint(primary.title)
+        normalized_query = " ".join(self._retriever._tokenize(query))
+
+        if "saque" in normalized_query:
+            subject = "saques"
+        elif "segunda" in normalized_query:
+            subject = "segunda via e servicos relacionados"
+        elif "pacote" in normalized_query or "servicos" in normalized_query:
+            subject = "pacotes e servicos"
+        elif "poupanca" in normalized_query:
+            subject = "conta poupanca"
+        else:
+            subject = "tarifas e servicos bancarios"
+
+        return (
+            f"Encontrei referencia oficial sobre {subject} na tabela geral de tarifas PF"
+            f"{page_hint}. Como a fonte e uma tabela em PDF com colunas e notas, use o painel tecnico "
+            "para conferir a fonte recuperada antes de tomar o valor como definitivo."
+        )
+
+    def _extract_page_hint(self, title: str) -> str:
+        match = re.search(r"pagina (\d+)", title)
+        if match is None:
+            return ""
+        return f", pagina {match.group(1)}"
 
 
 knowledge_service = GroundedKnowledgeService()

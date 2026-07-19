@@ -20,7 +20,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
-- RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, recuperacao hibrida lexical/BM25-like e grounding sources
+- RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
 
 ## Estratégia de Entrega
 
@@ -92,7 +92,7 @@ No painel técnico, valide:
 
 Resultado validado em 18 de julho de 2026:
 
-- `17 passed, 1 warning`
+- `18 passed, 1 warning`
 
 ### Observabilidade LangSmith
 
@@ -148,12 +148,12 @@ Checklist rápido:
 
 - resposta grounded para perguntas documentais simples
 - PDF local de tarifas ingerido em chunks com cache em `.runtime/knowledge_tariff_chunks.json`
+- respostas de tarifa usam answer builder controlado para evitar despejar tabelas cruas do PDF
 - fontes retornadas em `grounding_sources` no payload do Harness
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
 
 ## Próximos Passos
 
-- adicionar reranking alem da recuperacao hibrida lexical/BM25-like
 - adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
 - consolidar documentação final para PR
