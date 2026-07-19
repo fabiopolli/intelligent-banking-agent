@@ -450,6 +450,10 @@ class GroundedKnowledgeService:
 
         retrieved = self._reranker.rerank(query, self._retriever.retrieve(query, top_k=6))[:2]
         if not retrieved or retrieved[0].score < 0.65:
+            if self._is_tariff_query(query):
+                primary = self._default_tariff_reference()
+                return self._build_tariff_answer(query, primary), [TARIFF_PDF_SOURCE]
+
             return (
                 "Nao encontrei contexto oficial suficiente para responder com seguranca. "
                 "Posso seguir por atendimento humano ou por uma fonte oficial mais especifica.",
@@ -499,6 +503,22 @@ class GroundedKnowledgeService:
     def _is_tariff_query(self, query: str) -> bool:
         query_terms = set(self._retriever._tokenize(query))
         return bool(query_terms & TARIFF_QUERY_TERMS)
+
+    def _default_tariff_reference(self) -> RetrievedKnowledge:
+        for document in self._retriever.documents:
+            if document.source == TARIFF_PDF_SOURCE:
+                return RetrievedKnowledge(
+                    title=document.title,
+                    source=document.source,
+                    text=document.text,
+                    score=0.0,
+                )
+        return RetrievedKnowledge(
+            title="Tabela geral de tarifas PF",
+            source=TARIFF_PDF_SOURCE,
+            text="Tabela geral de tarifas PF do Itau.",
+            score=0.0,
+        )
 
     def _build_tariff_answer(self, query: str, primary: RetrievedKnowledge) -> str:
         page_hint = self._extract_page_hint(primary.title)

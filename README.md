@@ -161,4 +161,5 @@ Checklist rápido:
 
 - adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
 - expandir a sintese grounded de tarifas para mais servicos, valores e caminhos no app quando houver evidência tabular confiável
+- refatorar `app/services/knowledge_base.py` em modulos coesos de fontes, ingestao, retrieval, reranking, tokenizacao e sintese antes do PR final
 - consolidar documentação final para PR
