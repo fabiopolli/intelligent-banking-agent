@@ -152,6 +152,7 @@ Checklist rápido:
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
 - saque em conta corrente usa sintese grounded a partir da evidencia oficial recuperada do PDF
+- o resumo oficial do PDF de tarifas permanece carregado mesmo com ingestao completa, estabilizando o RAG em CI sem cache runtime
 - fontes retornadas em `grounding_sources` no payload do Harness
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente

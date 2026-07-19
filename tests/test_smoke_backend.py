@@ -173,7 +173,7 @@ def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "faq_fast_path"
-    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
     assert "saques" in body["message"].lower()
     assert "a tarifa pode variar" in body["message"].lower()
     assert "fonte recuperada" not in body["message"].lower()
@@ -193,7 +193,7 @@ def test_documental_tariff_followup_keeps_controlled_customer_answer() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "faq_fast_path"
-    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
     assert "saques" in body["message"].lower()
     assert "banco24horas" in body["message"].lower()
     assert "trecho usado" not in body["message"].lower()
@@ -213,7 +213,7 @@ def test_documental_tariff_followup_with_context_does_not_loop() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["route"] == "faq_fast_path"
-    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
     assert "saque em conta corrente" in body["message"].lower()
     assert "primeiros saques" in body["message"].lower()
     assert "tarifa avulsa" in body["message"].lower()

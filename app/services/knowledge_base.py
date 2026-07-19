@@ -293,12 +293,7 @@ def build_official_documents() -> list[KnowledgeDocument]:
     if not ingested:
         return OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents
 
-    non_pdf_documents = [
-        document
-        for document in OFFICIAL_KNOWLEDGE_DOCUMENTS
-        if document.source != TARIFF_PDF_SOURCE
-    ]
-    return non_pdf_documents + web_documents + ingested
+    return OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents + ingested
 
 
 class LocalHybridRetriever:
