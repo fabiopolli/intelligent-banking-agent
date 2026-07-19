@@ -156,7 +156,7 @@ def test_documental_tariff_question_returns_grounded_source() -> None:
     assert body["route"] == "faq_fast_path"
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
     assert "tabela geral de tarifas pf" in body["message"].lower()
-    assert "me diga o servico" in body["message"].lower()
+    assert "tambem posso te ajudar por aqui" in body["message"].lower()
     assert "painel tecnico" not in body["message"].lower()
 
 
@@ -175,8 +175,29 @@ def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
     assert body["route"] == "faq_fast_path"
     assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
     assert "saques" in body["message"].lower()
-    assert "servico exato" in body["message"].lower()
+    assert "a tarifa pode variar" in body["message"].lower()
     assert "fonte recuperada" not in body["message"].lower()
+    assert "trecho usado" not in body["message"].lower()
+
+
+def test_documental_tariff_followup_keeps_controlled_customer_answer() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-saque-followup",
+            "customer_id": "123",
+            "message": "Saque!",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert "saques" in body["message"].lower()
+    assert "banco24horas" in body["message"].lower()
+    assert "trecho usado" not in body["message"].lower()
+    assert "correntistas tem direito" not in body["message"].lower()
 
 
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:

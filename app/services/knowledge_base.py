@@ -94,6 +94,17 @@ DOCUMENTAL_QUERY_TERMS = {
     "transferencia",
     "whatsapp",
 }
+TARIFF_QUERY_TERMS = {
+    "pacote",
+    "poupanca",
+    "saque",
+    "segunda",
+    "servico",
+    "servicos",
+    "tarifa",
+    "tarifas",
+    "transferencia",
+}
 RAG_STOPWORDS = {
     "aos",
     "com",
@@ -442,7 +453,7 @@ class GroundedKnowledgeService:
 
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
-        if "tarifa" in query.lower() or "pacote" in query.lower():
+        if self._is_tariff_query(query):
             message = self._build_tariff_answer(query, primary)
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
@@ -480,6 +491,10 @@ class GroundedKnowledgeService:
         query_terms = set(self._retriever._tokenize(query))
         return bool(query_terms & DOCUMENTAL_QUERY_TERMS)
 
+    def _is_tariff_query(self, query: str) -> bool:
+        query_terms = set(self._retriever._tokenize(query))
+        return bool(query_terms & TARIFF_QUERY_TERMS)
+
     def _build_tariff_answer(self, query: str, primary: RetrievedKnowledge) -> str:
         page_hint = self._extract_page_hint(primary.title)
         normalized_query = " ".join(self._retriever._tokenize(query))
@@ -497,14 +512,16 @@ class GroundedKnowledgeService:
 
         if subject == "pacotes e servicos":
             return (
-                f"Voce pode consultar tarifas e pacotes na Tabela Geral de Tarifas PF do Itau{page_hint}. "
-                "Para encontrar um valor especifico, me diga o servico que voce quer consultar, como saque, "
-                "segunda via, transferencia, conta poupanca ou pacote de servicos."
+                "Voce pode consultar tarifas e pacotes pelo app Itau buscando por 'tarifas e pacotes' "
+                f"ou pela Tabela Geral de Tarifas PF do Itau{page_hint}. "
+                "Tambem posso te ajudar por aqui: me diga o servico, como saque, segunda via, "
+                "transferencia, conta poupanca ou pacote de servicos."
             )
 
         return (
-            f"Encontrei uma referencia oficial sobre {subject} na Tabela Geral de Tarifas PF do Itau{page_hint}. "
-            "Como o documento tem valores, colunas e notas, posso refinar a busca se voce informar o servico exato."
+            f"Sobre {subject}, encontrei referencia na Tabela Geral de Tarifas PF do Itau{page_hint}. "
+            "A tarifa pode variar por pacote, canal e tipo de conta. Para eu te orientar melhor no chat, "
+            "me diga o contexto: conta corrente, poupanca, terminal Itau, Banco24Horas ou outro canal."
         )
 
     def _extract_page_hint(self, title: str) -> str:
