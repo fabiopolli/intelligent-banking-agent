@@ -498,6 +498,7 @@ class GroundedKnowledgeService:
     def _build_tariff_answer(self, query: str, primary: RetrievedKnowledge) -> str:
         page_hint = self._extract_page_hint(primary.title)
         normalized_query = " ".join(self._retriever._tokenize(query))
+        tariff_context = self._extract_tariff_context(normalized_query)
 
         if "saque" in normalized_query:
             subject = "saques"
@@ -518,11 +519,30 @@ class GroundedKnowledgeService:
                 "transferencia, conta poupanca ou pacote de servicos."
             )
 
+        if tariff_context is not None:
+            return (
+                f"Sobre {subject} em {tariff_context}, encontrei referencia na Tabela Geral de Tarifas PF "
+                f"do Itau{page_hint}. Voce pode conferir o valor pelo app em tarifas e pacotes, "
+                "ou continuar por aqui me dizendo se quer consultar pacote essencial, pacote contratado "
+                "ou uso avulso do servico."
+            )
+
         return (
             f"Sobre {subject}, encontrei referencia na Tabela Geral de Tarifas PF do Itau{page_hint}. "
             "A tarifa pode variar por pacote, canal e tipo de conta. Para eu te orientar melhor no chat, "
             "me diga o contexto: conta corrente, poupanca, terminal Itau, Banco24Horas ou outro canal."
         )
+
+    def _extract_tariff_context(self, normalized_query: str) -> str | None:
+        if "conta corrente" in normalized_query:
+            return "conta corrente"
+        if "conta poupanca" in normalized_query or "poupanca" in normalized_query:
+            return "conta poupanca"
+        if "banco24horas" in normalized_query or "24horas" in normalized_query:
+            return "Banco24Horas"
+        if "terminal itau" in normalized_query or "caixa eletronico" in normalized_query:
+            return "terminal Itau"
+        return None
 
     def _extract_page_hint(self, title: str) -> str:
         match = re.search(r"pagina (\d+)", title)

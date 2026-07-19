@@ -200,6 +200,26 @@ def test_documental_tariff_followup_keeps_controlled_customer_answer() -> None:
     assert "correntistas tem direito" not in body["message"].lower()
 
 
+def test_documental_tariff_followup_with_context_does_not_loop() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-saque-conta-corrente",
+            "customer_id": "123",
+            "message": "Saque conta corrente.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+    assert "saques em conta corrente" in body["message"].lower()
+    assert "pacote essencial" in body["message"].lower()
+    assert "me diga o contexto" not in body["message"].lower()
+    assert "trecho usado" not in body["message"].lower()
+
+
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
     response = client.get("/v1/mcp/knowledge/status")
 
