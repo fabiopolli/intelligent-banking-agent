@@ -1,19 +1,18 @@
-from app.services.knowledge import (
-    GroundedKnowledgeService,
+from app.services.knowledge.config import (
     HELP_CENTER_SOURCE,
-    KnowledgeDocument,
-    LocalHybridRetriever,
-    LocalReranker,
-    OfficialWebSnapshotIngestor,
     POLICIES_SOURCE,
-    RetrievedKnowledge,
     TARIFF_PDF_PATH,
     TARIFF_PDF_SOURCE,
-    TariffGuidance,
+)
+from app.services.knowledge.ingestion import (
+    OfficialWebSnapshotIngestor,
     TariffPdfIngestor,
     build_official_documents,
-    knowledge_service,
 )
+from app.services.knowledge.reranker import LocalReranker
+from app.services.knowledge.retriever import LocalHybridRetriever
+from app.services.knowledge.schemas import KnowledgeDocument, RetrievedKnowledge, TariffGuidance
+from app.services.knowledge.service import GroundedKnowledgeService, knowledge_service
 
 __all__ = [
     "GroundedKnowledgeService",

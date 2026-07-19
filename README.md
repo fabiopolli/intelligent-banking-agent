@@ -153,6 +153,7 @@ Checklist rápido:
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
 - saque em conta corrente usa sintese grounded a partir da evidencia oficial recuperada do PDF
 - o resumo oficial do PDF de tarifas permanece carregado mesmo com ingestao completa, estabilizando o RAG em CI sem cache runtime
+- RAG organizado em modulos coesos em `app/services/knowledge/` para fontes, ingestao, retrieval, reranking, tokenizacao, schemas e sintese
 - fontes retornadas em `grounding_sources` no payload do Harness
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
@@ -161,5 +162,4 @@ Checklist rápido:
 
 - adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
 - expandir a sintese grounded de tarifas para mais servicos, valores e caminhos no app quando houver evidência tabular confiável
-- refatorar `app/services/knowledge_base.py` em modulos coesos de fontes, ingestao, retrieval, reranking, tokenizacao e sintese antes do PR final
 - consolidar documentação final para PR

@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import re
+
+from app.services.knowledge.config import TARIFF_PDF_SOURCE
+from app.services.knowledge.schemas import KnowledgeDocument, RetrievedKnowledge, TariffGuidance
+from app.services.knowledge.tokenization import normalize_for_match, tokenize
+
+
+class TariffAnswerBuilder:
+    def __init__(self, documents: list[KnowledgeDocument]) -> None:
+        self._documents = documents
+
+    def build(self, query: str, primary: RetrievedKnowledge) -> str:
+        page_hint = self._extract_page_hint(primary.title)
+        normalized_query = " ".join(tokenize(query))
+        tariff_context = self._extract_tariff_context(normalized_query)
+        subject = self._extract_subject(normalized_query)
+
+        if subject == "pacotes e servicos":
+            return (
+                "Voce pode consultar tarifas e pacotes pelo app Itau buscando por 'tarifas e pacotes' "
+                f"ou pela Tabela Geral de Tarifas PF do Itau{page_hint}. "
+                "Tambem posso te ajudar por aqui: me diga o servico, como saque, segunda via, "
+                "transferencia, conta poupanca ou pacote de servicos."
+            )
+
+        if tariff_context is not None:
+            guidance = self._find_tariff_guidance(subject, tariff_context)
+            if guidance is not None:
+                return guidance.message
+
+            return (
+                f"Sobre {subject} em {tariff_context}, encontrei referencia na Tabela Geral de Tarifas PF "
+                f"do Itau{page_hint}. Voce pode conferir o valor pelo app em tarifas e pacotes, "
+                "ou continuar por aqui me dizendo se quer consultar pacote essencial, pacote contratado "
+                "ou uso avulso do servico."
+            )
+
+        return (
+            f"Sobre {subject}, encontrei referencia na Tabela Geral de Tarifas PF do Itau{page_hint}. "
+            "A tarifa pode variar por pacote, canal e tipo de conta. Para eu te orientar melhor no chat, "
+            "me diga o contexto: conta corrente, poupanca, terminal Itau, Banco24Horas ou outro canal."
+        )
+
+    def _extract_subject(self, normalized_query: str) -> str:
+        if "saque" in normalized_query:
+            return "saques"
+        if "segunda" in normalized_query:
+            return "segunda via e servicos relacionados"
+        if "pacote" in normalized_query or "servicos" in normalized_query:
+            return "pacotes e servicos"
+        if "poupanca" in normalized_query:
+            return "conta poupanca"
+        return "tarifas e servicos bancarios"
+
+    def _extract_tariff_context(self, normalized_query: str) -> str | None:
+        if "conta corrente" in normalized_query:
+            return "conta corrente"
+        if "conta poupanca" in normalized_query or "poupanca" in normalized_query:
+            return "conta poupanca"
+        if "banco24horas" in normalized_query or "24horas" in normalized_query:
+            return "Banco24Horas"
+        if "terminal itau" in normalized_query or "caixa eletronico" in normalized_query:
+            return "terminal Itau"
+        return None
+
+    def _find_tariff_guidance(self, subject: str, tariff_context: str) -> TariffGuidance | None:
+        if subject != "saques" or tariff_context != "conta corrente":
+            return None
+
+        evidence = self._find_pdf_document_containing(
+            ["4 primeiros saques", "quantidade mensal do seu pacote", "tarifa avulsa"]
+        )
+        if evidence is None:
+            return None
+
+        page_hint = self._extract_page_hint(evidence.title)
+        return TariffGuidance(
+            page_hint=page_hint,
+            message=(
+                f"Para saque em conta corrente, encontrei uma orientacao mais especifica na Tabela Geral "
+                f"de Tarifas PF do Itau{page_hint}: os primeiros saques previstos na quantidade mensal "
+                "do pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
+                "devem seguir os canais previstos, como caixas eletronicos e Banco24Horas. Pode haver "
+                "tarifa avulsa se voce ultrapassar a quantidade incluida no pacote ou usar um canal fora "
+                "das regras do seu pacote. Pelo app, procure por 'tarifas e pacotes' para conferir o valor "
+                "aplicavel ao seu pacote atual."
+            ),
+        )
+
+    def _find_pdf_document_containing(self, phrases: list[str]) -> KnowledgeDocument | None:
+        normalized_phrases = [normalize_for_match(phrase) for phrase in phrases]
+        for document in self._documents:
+            if document.source != TARIFF_PDF_SOURCE:
+                continue
+            normalized_text = normalize_for_match(document.text)
+            if all(phrase in normalized_text for phrase in normalized_phrases):
+                return document
+        return None
+
+    def _extract_page_hint(self, title: str) -> str:
+        match = re.search(r"pagina (\d+)", title)
+        if match is None:
+            return ""
+        return f", pagina {match.group(1)}"
