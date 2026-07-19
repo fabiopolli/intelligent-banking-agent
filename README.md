@@ -151,6 +151,7 @@ Checklist rápido:
 - respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
+- saque em conta corrente usa sintese grounded a partir da evidencia oficial recuperada do PDF
 - fontes retornadas em `grounding_sources` no payload do Harness
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
@@ -158,5 +159,5 @@ Checklist rápido:
 ## Próximos Passos
 
 - adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
-- substituir os templates determinísticos de tarifa por sintese grounded capaz de responder valores e caminhos no app quando houver evidência tabular confiável
+- expandir a sintese grounded de tarifas para mais servicos, valores e caminhos no app quando houver evidência tabular confiável
 - consolidar documentação final para PR

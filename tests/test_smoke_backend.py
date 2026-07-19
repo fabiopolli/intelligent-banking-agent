@@ -214,8 +214,10 @@ def test_documental_tariff_followup_with_context_does_not_loop() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
-    assert "saques em conta corrente" in body["message"].lower()
-    assert "pacote essencial" in body["message"].lower()
+    assert "saque em conta corrente" in body["message"].lower()
+    assert "primeiros saques" in body["message"].lower()
+    assert "tarifa avulsa" in body["message"].lower()
+    assert "tarifas e pacotes" in body["message"].lower()
     assert "me diga o contexto" not in body["message"].lower()
     assert "trecho usado" not in body["message"].lower()
 

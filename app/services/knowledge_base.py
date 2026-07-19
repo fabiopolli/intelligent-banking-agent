@@ -25,6 +25,12 @@ class RetrievedKnowledge:
     score: float
 
 
+@dataclass(frozen=True)
+class TariffGuidance:
+    page_hint: str
+    message: str
+
+
 OFFICIAL_KNOWLEDGE_DOCUMENTS = [
     KnowledgeDocument(
         title="Atendimento Itau - canais digitais",
@@ -309,6 +315,10 @@ class LocalHybridRetriever:
     def sources(self) -> list[str]:
         return sorted({document.source for document in self._documents})
 
+    @property
+    def documents(self) -> list[KnowledgeDocument]:
+        return list(self._documents)
+
     def retrieve(self, query: str, top_k: int = 2) -> list[RetrievedKnowledge]:
         query_terms = self._tokenize(query)
         if not query_terms:
@@ -520,6 +530,10 @@ class GroundedKnowledgeService:
             )
 
         if tariff_context is not None:
+            guidance = self._find_tariff_guidance(subject, tariff_context)
+            if guidance is not None:
+                return guidance.message
+
             return (
                 f"Sobre {subject} em {tariff_context}, encontrei referencia na Tabela Geral de Tarifas PF "
                 f"do Itau{page_hint}. Voce pode conferir o valor pelo app em tarifas e pacotes, "
@@ -543,6 +557,43 @@ class GroundedKnowledgeService:
         if "terminal itau" in normalized_query or "caixa eletronico" in normalized_query:
             return "terminal Itau"
         return None
+
+    def _find_tariff_guidance(self, subject: str, tariff_context: str) -> TariffGuidance | None:
+        if subject != "saques" or tariff_context != "conta corrente":
+            return None
+
+        evidence = self._find_pdf_document_containing(
+            ["4 primeiros saques", "quantidade mensal do seu pacote", "tarifa avulsa"]
+        )
+        if evidence is None:
+            return None
+
+        page_hint = self._extract_page_hint(evidence.title)
+        return TariffGuidance(
+            page_hint=page_hint,
+            message=(
+                f"Para saque em conta corrente, encontrei uma orientacao mais especifica na Tabela Geral "
+                f"de Tarifas PF do Itau{page_hint}: os primeiros saques previstos na quantidade mensal "
+                "do pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
+                "devem seguir os canais previstos, como caixas eletronicos e Banco24Horas. Pode haver "
+                "tarifa avulsa se voce ultrapassar a quantidade incluida no pacote ou usar um canal fora "
+                "das regras do seu pacote. Pelo app, procure por 'tarifas e pacotes' para conferir o valor "
+                "aplicavel ao seu pacote atual."
+            ),
+        )
+
+    def _find_pdf_document_containing(self, phrases: list[str]) -> KnowledgeDocument | None:
+        normalized_phrases = [self._normalize_for_match(phrase) for phrase in phrases]
+        for document in self._retriever.documents:
+            if document.source != TARIFF_PDF_SOURCE:
+                continue
+            normalized_text = self._normalize_for_match(document.text)
+            if all(phrase in normalized_text for phrase in normalized_phrases):
+                return document
+        return None
+
+    def _normalize_for_match(self, text: str) -> str:
+        return unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
 
     def _extract_page_hint(self, title: str) -> str:
         match = re.search(r"pagina (\d+)", title)
