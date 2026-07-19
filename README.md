@@ -100,6 +100,7 @@ No painel técnico, valide:
 Resultado validado em 18 de julho de 2026:
 
 - `27 passed, 2 warnings`
+- Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel, KB com `pdf_ingested=true` e `pytest` dentro do container API (`27 passed, 2 warnings`)
 
 ### Docker Compose
 
@@ -119,7 +120,7 @@ O Compose sobe API, chat e painel tecnico. Os Streamlits usam `DEFAULT_API_URL=h
 $env:INTERNAL_TOOL_API_KEY="<chave-interna>"
 ```
 
-Como `.docs/` contem arquivos locais grandes, o Docker Compose monta essa pasta como volume read-only em `/app/.docs`. Assim a demo local usa o PDF real de tarifas, enquanto o `docker build` do CI continua reprodutivel mesmo sem versionar o PDF no Git.
+O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e versionado no repositorio e copiado para a imagem Docker. A imagem do desafio em `.docs/desafio.png` permanece fora do Git.
 
 ### Observabilidade LangSmith
 
@@ -150,6 +151,8 @@ Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback loc
 
 O projeto expõe uma fronteira MCP-style para representar os sistemas internos do desafio sem permitir que a LLM execute operações diretamente.
 
+Nesta demo, os tools MCP-style usam REST interno como transporte local. Isso nao muda a arquitetura: MCP e o contrato de tools/resources para o agente; REST e apenas o adapter interno simples usado para executar e demonstrar essas tools localmente. Um servidor MCP real pode substituir esse adapter preservando o Harness, RBAC, HITL, auditoria e os nomes das tools.
+
 Endpoints tecnicos protegidos:
 
 - `GET /v1/mcp/tools`
@@ -175,7 +178,7 @@ Arquitetura intencional:
 LLM -> Harness -> RBAC / HITL / Audit / Guardrails -> MCP-style tool boundary -> mocks internos
 ```
 
-O PDF de tarifas nao vira uma tool transacional. Ele e tratado como resource documental oficial (`itau://knowledge/tariff-pdf`) ingerido pelo RAG e exposto no registry MCP-style.
+O PDF de tarifas nao vira uma tool transacional. Ele e tratado como resource documental oficial (`itau://knowledge/tariff-pdf`) ingerido pelo RAG e exposto no registry MCP-style. Tools como `search_tariff_knowledge` consultam esse resource; tools como `create_pix` continuam passando por RBAC, HITL e auditoria.
 
 ### Troubleshooting rápido
 
@@ -242,7 +245,6 @@ Checklist rápido:
 ## Próximos Passos
 
 - validar manualmente `SLICE-LLM-GROUNDED-FAQ` com `OPENAI_API_KEY` real, mantendo o mesmo contrato de contexto aprovado
-- com Docker Desktop ativo, validar `docker compose up --build` localmente
 - acompanhar GitHub Actions para confirmar `pytest` e `docker build`
 - depois da LLM documental, expandir multi-turno de RAG para servico, tipo de conta, pacote e canal
 - depois disso, evoluir PIX para fluxo realista com chave, destinatario, confirmacao sensivel e autenticacao simulada por app

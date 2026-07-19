@@ -8,5 +8,6 @@ __pycache__/
 AGENTS.md
 .vscode/
 intelligent_banking_agent.egg-info/
-.docs/
+.docs/*
+!.docs/tabela_geral_de_tarifas_pf_pdf.pdf
 .runtime/

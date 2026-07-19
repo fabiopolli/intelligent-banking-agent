@@ -7,8 +7,6 @@ services:
       INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
     ports:
       - "8000:8000"
-    volumes:
-      - ./.docs:/app/.docs:ro
 
   customer-chat:
     build:
@@ -29,8 +27,6 @@ services:
       - "8501:8501"
     depends_on:
       - api
-    volumes:
-      - ./.docs:/app/.docs:ro
 
   ops-dashboard:
     build:
@@ -51,5 +47,3 @@ services:
       - "8502:8502"
     depends_on:
       - api
-    volumes:
-      - ./.docs:/app/.docs:ro
