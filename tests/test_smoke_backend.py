@@ -155,8 +155,9 @@ def test_documental_tariff_question_returns_grounded_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
-    assert "referencia oficial" in body["message"].lower()
-    assert "tabela em pdf" in body["message"].lower()
+    assert "tabela geral de tarifas pf" in body["message"].lower()
+    assert "me diga o servico" in body["message"].lower()
+    assert "painel tecnico" not in body["message"].lower()
 
 
 def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
@@ -174,7 +175,8 @@ def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
     assert body["route"] == "faq_fast_path"
     assert body["grounding_sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
     assert "saques" in body["message"].lower()
-    assert "fonte recuperada" in body["message"].lower()
+    assert "servico exato" in body["message"].lower()
+    assert "fonte recuperada" not in body["message"].lower()
 
 
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:

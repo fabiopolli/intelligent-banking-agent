@@ -148,7 +148,7 @@ Checklist rápido:
 
 - resposta grounded para perguntas documentais simples
 - PDF local de tarifas ingerido em chunks com cache em `.runtime/knowledge_tariff_chunks.json`
-- respostas de tarifa usam answer builder controlado para evitar despejar tabelas cruas do PDF
+- respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
 - fontes retornadas em `grounding_sources` no payload do Harness
 - frontend mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente

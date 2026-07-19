@@ -495,10 +495,16 @@ class GroundedKnowledgeService:
         else:
             subject = "tarifas e servicos bancarios"
 
+        if subject == "pacotes e servicos":
+            return (
+                f"Voce pode consultar tarifas e pacotes na Tabela Geral de Tarifas PF do Itau{page_hint}. "
+                "Para encontrar um valor especifico, me diga o servico que voce quer consultar, como saque, "
+                "segunda via, transferencia, conta poupanca ou pacote de servicos."
+            )
+
         return (
-            f"Encontrei referencia oficial sobre {subject} na tabela geral de tarifas PF"
-            f"{page_hint}. Como a fonte e uma tabela em PDF com colunas e notas, use o painel tecnico "
-            "para conferir a fonte recuperada antes de tomar o valor como definitivo."
+            f"Encontrei uma referencia oficial sobre {subject} na Tabela Geral de Tarifas PF do Itau{page_hint}. "
+            "Como o documento tem valores, colunas e notas, posso refinar a busca se voce informar o servico exato."
         )
 
     def _extract_page_hint(self, title: str) -> str:
