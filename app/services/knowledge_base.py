@@ -55,24 +55,117 @@ OFFICIAL_KNOWLEDGE_DOCUMENTS = [
 
 TARIFF_PDF_PATH = Path(".docs/tabela_geral_de_tarifas_pf_pdf.pdf")
 TARIFF_PDF_SOURCE = ".docs/tabela_geral_de_tarifas_pf_pdf.pdf"
+HELP_CENTER_SOURCE = "https://www.itau.com.br/atendimento-itau/para-voce"
+POLICIES_SOURCE = "https://www.itau.com.br/relacoes-com-investidores/politicas/"
 DOCUMENTAL_QUERY_TERMS = {
+    "acessos",
+    "agencia",
+    "app",
     "atendimento",
+    "boleto",
+    "boletos",
     "cartao",
+    "chat",
+    "comprovante",
+    "comprovantes",
     "conta",
     "corrente",
+    "desbloqueio",
+    "duvidas",
+    "fraude",
+    "fraudes",
     "governanca",
     "itau",
+    "itoken",
     "pacote",
+    "pagamentos",
     "politica",
+    "politicas",
     "poupanca",
+    "renegociacao",
     "saque",
+    "seguranca",
+    "senha",
     "segunda",
     "servico",
     "servicos",
     "tarifa",
     "tarifas",
     "transferencia",
+    "whatsapp",
 }
+RAG_STOPWORDS = {
+    "aos",
+    "com",
+    "como",
+    "das",
+    "dos",
+    "ita",
+    "itau",
+    "onde",
+    "para",
+    "pela",
+    "pelo",
+    "qual",
+    "quais",
+    "que",
+    "seu",
+    "sua",
+    "voce",
+}
+
+
+class OfficialWebSnapshotIngestor:
+    @traceable(name="Official Web Snapshot Ingestion", run_type="retriever")
+    def load_documents(self) -> list[KnowledgeDocument]:
+        return [
+            KnowledgeDocument(
+                title="Central de ajuda Itau - canais de atendimento",
+                source=HELP_CENTER_SOURCE,
+                text=(
+                    "A Central de Ajuda Itau para voce apresenta atendimento pelo WhatsApp Itau, "
+                    "consulta de saldos, limites, segunda via e duvidas. Tambem destaca o chat no app "
+                    "ou internet para tirar duvidas e resolver o que precisar, alem de telefones e "
+                    "encontre agencias."
+                ),
+            ),
+            KnowledgeDocument(
+                title="Central de ajuda Itau - topicos frequentes",
+                source=HELP_CENTER_SOURCE,
+                text=(
+                    "Os topicos frequentes da Central de Ajuda incluem novo app Itau, dados cadastrais, "
+                    "cartao de credito, conta corrente, tarifas, boletos, pagamentos e transferencias, "
+                    "acessos, iToken, seguros, renegociacao, imposto de renda e investimentos."
+                ),
+            ),
+            KnowledgeDocument(
+                title="Central de ajuda Itau - seguranca e cartao",
+                source=HELP_CENTER_SOURCE,
+                text=(
+                    "A Central de Ajuda orienta sobre desbloqueio de cartao, senha de acesso Itau, "
+                    "seguranca e fraudes, contestacao de compras no cartao de credito e uso dos canais "
+                    "digitais para atendimento seguro."
+                ),
+            ),
+            KnowledgeDocument(
+                title="Politicas Itau - governanca e integridade",
+                source=POLICIES_SOURCE,
+                text=(
+                    "A pagina de politicas de relacoes com investidores do Itau concentra documentos "
+                    "institucionais relacionados a governanca corporativa, integridade, etica, ESG, "
+                    "informacoes ao mercado, resultados, relatorios e documentos regulatorios."
+                ),
+            ),
+            KnowledgeDocument(
+                title="Politicas Itau - mercado e regulatorio",
+                source=POLICIES_SOURCE,
+                text=(
+                    "As politicas e documentos institucionais do Itau apoiam consultas sobre perfil "
+                    "corporativo, governanca, ratings, renda fixa, documentos regulatorios, empresas do "
+                    "grupo e comunicacao com investidores."
+                ),
+            ),
+        ]
 
 
 class TariffPdfIngestor:
@@ -179,15 +272,16 @@ class TariffPdfIngestor:
 
 def build_official_documents() -> list[KnowledgeDocument]:
     ingested = TariffPdfIngestor().load_documents()
+    web_documents = OfficialWebSnapshotIngestor().load_documents()
     if not ingested:
-        return OFFICIAL_KNOWLEDGE_DOCUMENTS
+        return OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents
 
     non_pdf_documents = [
         document
         for document in OFFICIAL_KNOWLEDGE_DOCUMENTS
         if document.source != TARIFF_PDF_SOURCE
     ]
-    return non_pdf_documents + ingested
+    return non_pdf_documents + web_documents + ingested
 
 
 class LocalHybridRetriever:
@@ -269,7 +363,11 @@ class LocalHybridRetriever:
 
     def _tokenize(self, text: str) -> list[str]:
         normalized = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode("ascii")
-        return [token for token in re.findall(r"[a-z0-9]+", normalized) if len(token) > 2]
+        return [
+            token
+            for token in re.findall(r"[a-z0-9]+", normalized)
+            if len(token) > 2 and token not in RAG_STOPWORDS
+        ]
 
 
 class GroundedKnowledgeService:
@@ -302,12 +400,12 @@ class GroundedKnowledgeService:
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
                 "Para politicas institucionais, encontrei a fonte oficial de relacoes com investidores "
-                "e politicas do Itau usada como base de grounding."
+                f"e politicas do Itau. Trecho usado: {excerpt}"
             )
         else:
             message = (
                 "Encontrei uma orientacao oficial de atendimento Itau relacionada a sua pergunta. "
-                "Use a fonte retornada para validar o detalhe operacional."
+                f"Trecho usado: {excerpt}"
             )
 
         sources = list(dict.fromkeys(item.source for item in retrieved))
@@ -318,6 +416,10 @@ class GroundedKnowledgeService:
             "document_count": self._retriever.document_count,
             "sources": self._retriever.sources,
             "pdf_ingested": TARIFF_PDF_SOURCE in self._retriever.sources,
+            "web_sources_loaded": all(
+                source in self._retriever.sources
+                for source in [HELP_CENTER_SOURCE, POLICIES_SOURCE]
+            ),
         }
 
     def _compact_excerpt(self, text: str, limit: int = 220) -> str:

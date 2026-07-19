@@ -164,8 +164,43 @@ def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["pdf_ingested"] is True
+    assert body["web_sources_loaded"] is True
     assert body["document_count"] > 3
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["sources"]
+
+
+def test_documental_help_center_question_returns_official_source() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-help-center",
+            "customer_id": "123",
+            "message": "Como falo com o Itau pelo WhatsApp?",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert "https://www.itau.com.br/atendimento-itau/para-voce" in body["grounding_sources"]
+    assert "orientacao oficial" in body["message"].lower()
+
+
+def test_documental_policy_question_returns_official_source() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-rag-policy",
+            "customer_id": "123",
+            "message": "Onde encontro politicas de governanca e integridade do Itau?",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "faq_fast_path"
+    assert "https://www.itau.com.br/relacoes-com-investidores/politicas/" in body["grounding_sources"]
+    assert "politicas institucionais" in body["message"].lower()
 
 
 def test_documental_question_without_context_fails_safely() -> None:

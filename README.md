@@ -20,7 +20,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
-- RAG local com ingestao real do PDF de tarifas, cache runtime, recuperacao hibrida lexical/BM25-like e grounding sources
+- RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, recuperacao hibrida lexical/BM25-like e grounding sources
 
 ## Estratégia de Entrega
 
@@ -92,7 +92,7 @@ No painel técnico, valide:
 
 Resultado validado em 18 de julho de 2026:
 
-- `15 passed, 1 warning`
+- `17 passed, 1 warning`
 
 ### Observabilidade LangSmith
 
@@ -154,6 +154,6 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- adicionar ingestao das fontes FAQ e politicas alem do PDF local
+- adicionar reranking alem da recuperacao hibrida lexical/BM25-like
 - adicionar resposta inteligente controlada com LLM usando apenas contexto aprovado pelo Harness
 - consolidar documentação final para PR

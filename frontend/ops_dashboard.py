@@ -145,6 +145,7 @@ def render_knowledge_panel(api_url: str) -> None:
     first, second = st.columns(2)
     first.metric("Documents", status["document_count"])
     second.metric("PDF", "Ingested" if status["pdf_ingested"] else "Fallback")
+    st.metric("Official web sources", "Loaded" if status["web_sources_loaded"] else "Missing")
 
     with st.expander("Sources", expanded=False):
         for source in status["sources"]:
