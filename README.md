@@ -23,6 +23,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
 - respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e primeira sintese grounded para `Saque conta corrente`
 - RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
+- provider OpenAI opcional para FAQ/RAG grounded via Responses API, desligado por padrao e com fallback local deterministico
 - GitHub Actions verde apos estabilizacao dos testes de RAG em ambiente sem cache runtime
 
 ## Estratégia de Entrega
@@ -95,7 +96,7 @@ No painel técnico, valide:
 
 Resultado validado em 18 de julho de 2026:
 
-- `18 passed, 1 warning`
+- `23 passed, 1 warning`
 
 ### Observabilidade LangSmith
 
@@ -108,6 +109,19 @@ $env:LANGSMITH_PROJECT="itau-intelligent-banking-agent"
 ```
 
 O painel técnico mostra o status em `Observability`.
+
+### FAQ/RAG com Sintese Opcional
+
+O projeto permanece executavel sem credenciais externas. A primeira fronteira de LLM foi adicionada apenas para sintese documental grounded e fica desligada por padrao:
+
+```powershell
+$env:LLM_GROUNDED_FAQ_ENABLED="true"
+$env:LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="<sua-chave>"
+$env:LLM_MODEL="gpt-5.6-luna"
+```
+
+Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro.
 
 ### Troubleshooting rápido
 
@@ -155,6 +169,8 @@ Checklist rápido:
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
 - saque em conta corrente usa sintese grounded a partir da evidencia oficial recuperada do PDF
+- FAQ e politicas podem usar o provider OpenAI opcional quando ha fonte oficial recuperada
+- tarifas continuam no builder controlado para evitar invencao de valores ou despejo de tabela crua
 - o resumo oficial do PDF de tarifas permanece carregado mesmo com ingestao completa, estabilizando o RAG em CI sem cache runtime
 - RAG organizado em modulos coesos em `app/services/knowledge/` para fontes, ingestao, retrieval, reranking, tokenizacao, schemas e sintese
 - fontes retornadas em `grounding_sources` no payload do Harness
@@ -163,7 +179,7 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- `SLICE-LLM-GROUNDED-FAQ`: primeira integracao real com LLM, limitada a respostas documentais de FAQ/RAG
+- validar manualmente `SLICE-LLM-GROUNDED-FAQ` com `OPENAI_API_KEY` real, mantendo o mesmo contrato de contexto aprovado
 - manter Harness, RBAC, retrieval, source filtering, fallback e envelope de resposta fora da LLM
 - enviar para a LLM apenas contexto aprovado de fontes oficiais recuperadas
 - safe-fail quando nao houver contexto oficial suficiente, sem improvisar tarifa, regra ou valor

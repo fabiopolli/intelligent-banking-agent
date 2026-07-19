@@ -10,6 +10,7 @@ from app.services.knowledge.config import (
     TARIFF_PDF_SOURCE,
     TARIFF_QUERY_TERMS,
 )
+from app.services.knowledge.llm import GroundedFaqSynthesizer, build_grounded_faq_synthesizer
 from app.services.knowledge.reranker import LocalReranker
 from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.schemas import RetrievedKnowledge
@@ -20,9 +21,11 @@ class GroundedKnowledgeService:
         self,
         retriever: LocalHybridRetriever | None = None,
         reranker: LocalReranker | None = None,
+        synthesizer: GroundedFaqSynthesizer | None = None,
     ) -> None:
         self._retriever = retriever or LocalHybridRetriever()
         self._reranker = reranker or LocalReranker()
+        self._synthesizer = synthesizer if synthesizer is not None else build_grounded_faq_synthesizer()
         self._tariff_answers = TariffAnswerBuilder(self._retriever.documents)
 
     def answer(self, query: str) -> tuple[str, list[str]]:
@@ -49,6 +52,8 @@ class GroundedKnowledgeService:
         excerpt = self._compact_excerpt(primary.text)
         if self._is_tariff_query(query):
             message = self._tariff_answers.build(query, primary)
+        elif self._synthesizer is not None:
+            message = self._synthesizer.synthesize(query, retrieved)
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
                 "Para politicas institucionais, encontrei a fonte oficial de relacoes com investidores "
@@ -73,6 +78,7 @@ class GroundedKnowledgeService:
                 for source in [HELP_CENTER_SOURCE, POLICIES_SOURCE]
             ),
             "reranker": "local-intent-reranker",
+            "grounded_faq_synthesizer": self._synthesizer.provider_name if self._synthesizer else "disabled",
         }
 
     def _compact_excerpt(self, text: str, limit: int = 220) -> str:

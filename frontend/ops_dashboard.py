@@ -145,7 +145,9 @@ def render_knowledge_panel(api_url: str) -> None:
     first, second = st.columns(2)
     first.metric("Documents", status["document_count"])
     second.metric("PDF", "Ingested" if status["pdf_ingested"] else "Fallback")
-    st.metric("Official web sources", "Loaded" if status["web_sources_loaded"] else "Missing")
+    third, fourth = st.columns(2)
+    third.metric("Official web sources", "Loaded" if status["web_sources_loaded"] else "Missing")
+    fourth.metric("FAQ synthesizer", status.get("grounded_faq_synthesizer", "disabled"))
     st.caption(f"Reranker: {status.get('reranker', '-')}")
 
     with st.expander("Sources", expanded=False):

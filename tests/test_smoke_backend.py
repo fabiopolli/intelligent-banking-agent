@@ -3,11 +3,25 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.api.inbound import harness
 from app.schemas.messages import ChatRequest
+from app.config import settings
 from app.services.harness import DemoHarness
+from app.services.knowledge.llm import OpenAIGroundedFaqSynthesizer
+from app.services.knowledge.service import GroundedKnowledgeService
 from app.services.mock_bank import mock_bank_service
 
 
 client = TestClient(app)
+
+
+class RecordingSynthesizer:
+    provider_name = "fake-recording"
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def synthesize(self, query, contexts) -> str:  # noqa: ANN001
+        self.calls.append((query, [context.source for context in contexts]))
+        return "Resposta sintetizada somente com contexto oficial recuperado."
 
 
 def test_chat_balance_smoke() -> None:
@@ -248,6 +262,71 @@ def test_documental_help_center_question_returns_official_source() -> None:
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in body["grounding_sources"]
     assert body["grounding_sources"] == ["https://www.itau.com.br/atendimento-itau/para-voce"]
     assert "orientacao oficial" in body["message"].lower()
+
+
+def test_grounded_faq_synthesizer_receives_only_retrieved_official_context() -> None:
+    synthesizer = RecordingSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=synthesizer)
+
+    message, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
+
+    assert message == "Resposta sintetizada somente com contexto oficial recuperado."
+    assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
+    assert synthesizer.calls == [
+        ("Como falo com o Itau pelo WhatsApp?", ["https://www.itau.com.br/atendimento-itau/para-voce"])
+    ]
+
+
+def test_grounded_faq_synthesizer_is_not_called_without_official_context() -> None:
+    synthesizer = RecordingSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=synthesizer)
+
+    message, sources = service.answer("Qual e a cotacao do dolar comercial agora?")
+
+    assert sources == []
+    assert "nao encontrei contexto oficial suficiente" in message.lower()
+    assert synthesizer.calls == []
+
+
+def test_tariff_answer_keeps_controlled_builder_when_synthesizer_is_available() -> None:
+    synthesizer = RecordingSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=synthesizer)
+
+    message, sources = service.answer("Tem tarifa para saque?")
+
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in sources
+    assert "saques" in message.lower()
+    assert "r$" not in message.lower()
+    assert synthesizer.calls == []
+
+
+def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "openai_api_key", None)
+    synthesizer = OpenAIGroundedFaqSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=synthesizer)
+
+    message, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
+
+    assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
+    assert "fontes oficiais recuperadas" in message.lower()
+
+
+def test_openai_grounded_prompt_contains_only_question_and_official_context() -> None:
+    synthesizer = OpenAIGroundedFaqSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=RecordingSynthesizer())
+    _, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
+    assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
+
+    retrieved = service._reranker.rerank(  # noqa: SLF001
+        "Como falo com o Itau pelo WhatsApp?",
+        service._retriever.retrieve("Como falo com o Itau pelo WhatsApp?", top_k=6),  # noqa: SLF001
+    )[:2]
+    prompt = synthesizer._build_user_prompt("Como falo com o Itau pelo WhatsApp?", retrieved)  # noqa: SLF001
+
+    assert "Pergunta do cliente: Como falo com o Itau pelo WhatsApp?" in prompt
+    assert "https://www.itau.com.br/atendimento-itau/para-voce" in prompt
+    assert "checkpoint" not in prompt.lower()
+    assert "customer_id" not in prompt.lower()
 
 
 def test_documental_policy_question_returns_official_source() -> None:
