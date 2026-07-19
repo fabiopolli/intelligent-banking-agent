@@ -31,37 +31,49 @@ def configure_page(title: str, wide: bool = True) -> None:
             max-width: 1440px;
         }
         div[data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid #e6e8ef;
+            background: #141922;
+            border: 1px solid #303846;
             border-radius: 8px;
             padding: 0.75rem 0.9rem;
-            box-shadow: 0 1px 2px rgba(20, 31, 56, 0.05);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+        }
+        div[data-testid="stMetric"] label,
+        div[data-testid="stMetric"] [data-testid="stMetricLabel"],
+        div[data-testid="stMetric"] [data-testid="stMetricValue"],
+        div[data-testid="stMetric"] [data-testid="stMetricDelta"],
+        div[data-testid="stMetric"] * {
+            color: #f3f7fb !important;
         }
         .hero-band {
-            border: 1px solid #dce2ea;
+            border: 1px solid #303846;
             border-radius: 8px;
             padding: 1rem 1.1rem;
-            background: linear-gradient(90deg, #ffffff 0%, #f6f8fb 100%);
+            background: #141922;
             margin-bottom: 1rem;
         }
+        .hero-band h2 {
+            color: #f7fafc !important;
+        }
         .status-line {
-            color: #506070;
+            color: #c7d0dc;
             font-size: 0.92rem;
         }
         .source-pill {
-            border: 1px solid #d9e2ec;
+            border: 1px solid #3b4658;
             border-radius: 6px;
             padding: 0.55rem 0.65rem;
-            background: #fbfcfe;
+            background: #111721;
+            color: #f3f7fb;
             margin-bottom: 0.45rem;
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
             font-size: 0.82rem;
         }
         .confirm-band {
-            border: 1px solid #f0c36d;
+            border: 1px solid #d9982f;
             border-radius: 8px;
             padding: 0.8rem 0.9rem;
-            background: #fff8e6;
+            background: #2b2110;
+            color: #fff6df;
             margin-top: 0.8rem;
         }
         </style>

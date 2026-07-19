@@ -24,7 +24,9 @@ Em 18 de julho de 2026, o projeto já possui:
 - respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e primeira sintese grounded para `Saque conta corrente`
 - RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
 - provider OpenAI opcional para FAQ/RAG grounded via Responses API, desligado por padrao e com fallback local deterministico
+- provider Docker Model Runner opcional para FAQ/RAG grounded via API OpenAI-compatible local, desligado por padrao e com fallback local deterministico
 - MCP-style internal tool boundary protegido por `X-Internal-Tool-Key`, com registry de tools e resources oficiais
+- servidor MCP real separado em `app.mcp.server`, expondo resources oficiais e tools seguras para agentes sem bypass de Harness/RBAC/HITL/auditoria
 - observabilidade de prompt, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo no trace tecnico
 - auditoria critica com `user`, `action`, `amount`, `timestamp` e hash encadeado append-only
 - GitHub Actions verde apos estabilizacao dos testes de RAG em ambiente sem cache runtime
@@ -100,6 +102,7 @@ No painel técnico, valide:
 Resultado validado em 18 de julho de 2026:
 
 - `27 passed, 2 warnings`
+- `29 passed, 2 warnings` apos MCP real, Docker Model Runner provider e correcao visual Streamlit
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel, KB com `pdf_ingested=true` e `pytest` dentro do container API (`27 passed, 2 warnings`)
 
 ### Docker Compose
@@ -113,6 +116,7 @@ Servicos previstos:
 - API: `http://localhost:8000`
 - Chat do cliente: `http://localhost:8501`
 - Painel tecnico: `http://localhost:8502`
+- MCP server: `http://localhost:8600/mcp`
 
 O Compose sobe API, chat e painel tecnico. Os Streamlits usam `DEFAULT_API_URL=http://api:8000/v1` dentro da rede Docker. Se usar uma chave interna diferente da demo, configure:
 
@@ -147,11 +151,50 @@ $env:LLM_MODEL="gpt-5.6-luna"
 
 Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro.
 
+### FAQ/RAG com Docker Model Runner
+
+Tambem e possivel usar um modelo local via Docker Model Runner, mantendo a mesma interface OpenAI-compatible e o mesmo fallback deterministico:
+
+```powershell
+docker desktop enable model-runner --tcp 12434
+docker model pull ai/smollm2
+$env:LLM_GROUNDED_FAQ_ENABLED="true"
+$env:LLM_PROVIDER="docker_model_runner"
+$env:DOCKER_MODEL_RUNNER_BASE_URL="http://localhost:12434/engines/v1"
+$env:DOCKER_MODEL_RUNNER_MODEL="ai/smollm2"
+```
+
+Para Docker Compose, o `docker-compose.yml` ja aponta containers para `http://model-runner.docker.internal/engines/v1` quando `LLM_PROVIDER=docker_model_runner`.
+
+O Model Runner e opcional: o projeto continua subindo sem ele. A API do Model Runner nao e autenticada, portanto deve ficar restrita ao ambiente local/interno da demo.
+
+Evidencia local em 18 de julho de 2026: `docker model status` reportou `Docker Model Runner is running`, `docker model list` encontrou `ai/smollm2`, e o provider `docker_model_runner` respondeu sem fallback com `token_usage`.
+
 ## MCP, Tools e Resources
 
-O projeto expõe uma fronteira MCP-style para representar os sistemas internos do desafio sem permitir que a LLM execute operações diretamente.
+O projeto expõe duas camadas para representar o item MCP do desafio sem permitir que a LLM execute operações diretamente:
+
+1. REST interno protegido em `/v1/mcp/*`, usado pela demo local e pelo painel tecnico.
+2. Servidor MCP real em `app.mcp.server`, publicado no Compose em `http://localhost:8600/mcp`.
 
 Nesta demo, os tools MCP-style usam REST interno como transporte local. Isso nao muda a arquitetura: MCP e o contrato de tools/resources para o agente; REST e apenas o adapter interno simples usado para executar e demonstrar essas tools localmente. Um servidor MCP real pode substituir esse adapter preservando o Harness, RBAC, HITL, auditoria e os nomes das tools.
+
+Para rodar o servidor MCP real fora do Compose:
+
+```powershell
+.\.venv\Scripts\python -m app.mcp.server
+```
+
+Tools expostas pelo servidor MCP real:
+
+- `search_tariff_knowledge`: consulta RAG oficial com evidencias.
+- `send_agent_message`: envia uma mensagem pelo Agent Harness, preservando RBAC, HITL, guardrails e auditoria.
+- `get_demo_status`: retorna status de KB, observabilidade, tools e resources.
+
+Resources expostos pelo servidor MCP real:
+
+- `itau://mcp/tools`
+- `itau://knowledge/resources`
 
 Endpoints tecnicos protegidos:
 

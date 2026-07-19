@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=20.0, gt=0)
     llm_context_char_limit: int = Field(default=3000, ge=500)
     openai_api_key: str | None = None
+    docker_model_runner_base_url: str = "http://localhost:12434/engines/v1"
+    docker_model_runner_model: str = "ai/smollm2"
+    mcp_server_host: str = "0.0.0.0"
+    mcp_server_port: int = Field(default=8600, ge=1, le=65535)
     internal_tool_api_key: str = Field(default="demo-internal-tool-key", min_length=8)
 
 

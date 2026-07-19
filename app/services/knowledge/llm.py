@@ -199,6 +199,69 @@ class OpenAIGroundedFaqSynthesizer:
         return None
 
 
+class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
+    provider_name = "docker-model-runner"
+
+    def synthesize(self, query: str, contexts: list[RetrievedKnowledge]) -> str:
+        start = time.perf_counter()
+        prompt = self._build_user_prompt(query, contexts)
+
+        try:
+            from openai import OpenAI
+        except ImportError:
+            logger.warning("OpenAI-compatible SDK is not installed; using local grounded FAQ fallback.")
+            message = self._fallback.synthesize(query, contexts)
+            self.last_trace = self._fallback_trace(prompt, contexts, start, "missing_sdk")
+            return message
+
+        try:
+            client = OpenAI(
+                api_key="not-needed",
+                base_url=settings.docker_model_runner_base_url,
+                timeout=settings.llm_timeout_seconds,
+            )
+            response = client.chat.completions.create(
+                model=settings.docker_model_runner_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Voce e um sintetizador documental para atendimento bancario. "
+                            "Use somente o contexto oficial aprovado recebido. "
+                            "Nao invente tarifas, valores, regras, canais ou prazos. "
+                            "Nao solicite nem execute ferramentas, operacoes bancarias ou side effects. "
+                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Docker Model Runner grounded FAQ synthesis failed; using local fallback: %s", exc)
+            message = self._fallback.synthesize(query, contexts)
+            self.last_trace = self._fallback_trace(prompt, contexts, start, "provider_error")
+            return message
+
+        text = (response.choices[0].message.content or "").strip()
+        if not text:
+            message = self._fallback.synthesize(query, contexts)
+            self.last_trace = self._fallback_trace(prompt, contexts, start, "empty_response")
+            return message
+
+        self.last_trace = {
+            "provider": self.provider_name,
+            "model": settings.docker_model_runner_model,
+            "fallback_used": False,
+            "fallback_reason": None,
+            "prompt": prompt,
+            "approved_context": self._context_trace(contexts),
+            "token_usage": self._extract_usage(response),
+            "duration_ms": round((time.perf_counter() - start) * 1000),
+        }
+        return text
+
+
 def build_grounded_faq_synthesizer() -> GroundedFaqSynthesizer | None:
     if not settings.llm_grounded_faq_enabled:
         return None
@@ -208,5 +271,8 @@ def build_grounded_faq_synthesizer() -> GroundedFaqSynthesizer | None:
 
     if settings.llm_provider == "openai":
         return OpenAIGroundedFaqSynthesizer()
+
+    if settings.llm_provider in {"docker", "docker_model_runner", "dmr"}:
+        return DockerModelRunnerGroundedFaqSynthesizer()
 
     return LocalGroundedFaqSynthesizer(provider_name=f"{settings.llm_provider}-fallback-local")

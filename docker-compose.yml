@@ -5,8 +5,39 @@ services:
       dockerfile: Dockerfile
     environment:
       INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      LLM_GROUNDED_FAQ_ENABLED: ${LLM_GROUNDED_FAQ_ENABLED:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.6-luna}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCKER_MODEL_RUNNER_BASE_URL: ${DOCKER_MODEL_RUNNER_BASE_URL:-http://model-runner.docker.internal/engines/v1}
+      DOCKER_MODEL_RUNNER_MODEL: ${DOCKER_MODEL_RUNNER_MODEL:-ai/smollm2}
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
     ports:
       - "8000:8000"
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      LLM_GROUNDED_FAQ_ENABLED: ${LLM_GROUNDED_FAQ_ENABLED:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.6-luna}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCKER_MODEL_RUNNER_BASE_URL: ${DOCKER_MODEL_RUNNER_BASE_URL:-http://model-runner.docker.internal/engines/v1}
+      DOCKER_MODEL_RUNNER_MODEL: ${DOCKER_MODEL_RUNNER_MODEL:-ai/smollm2}
+      MCP_SERVER_HOST: 0.0.0.0
+      MCP_SERVER_PORT: 8600
+    command:
+      - python
+      - -m
+      - app.mcp.server
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    ports:
+      - "8600:8600"
 
   customer-chat:
     build:

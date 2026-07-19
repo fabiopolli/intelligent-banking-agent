@@ -5,7 +5,11 @@ from app.api.inbound import harness
 from app.schemas.messages import ChatRequest
 from app.config import settings
 from app.services.harness import DemoHarness
-from app.services.knowledge.llm import OpenAIGroundedFaqSynthesizer
+from app.services.knowledge.llm import (
+    DockerModelRunnerGroundedFaqSynthesizer,
+    OpenAIGroundedFaqSynthesizer,
+    build_grounded_faq_synthesizer,
+)
 from app.services.knowledge.service import GroundedKnowledgeService
 from app.services.mock_bank import mock_bank_service
 
@@ -359,6 +363,27 @@ def test_openai_grounded_prompt_contains_only_question_and_official_context() ->
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in prompt
     assert "checkpoint" not in prompt.lower()
     assert "customer_id" not in prompt.lower()
+
+
+def test_docker_model_runner_provider_is_selectable(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "llm_grounded_faq_enabled", True)
+    monkeypatch.setattr(settings, "llm_provider", "docker_model_runner")
+    monkeypatch.setattr(settings, "docker_model_runner_model", "ai/smollm2")
+
+    synthesizer = build_grounded_faq_synthesizer()
+
+    assert isinstance(synthesizer, DockerModelRunnerGroundedFaqSynthesizer)
+    assert synthesizer.provider_name == "docker-model-runner"
+
+
+def test_mcp_server_module_exposes_safe_agent_tools() -> None:
+    from app.mcp import server as mcp_server
+
+    assert mcp_server.mcp is not None
+    status = mcp_server.get_demo_status()
+    assert status["knowledge"]["pdf_ingested"] is True
+    assert any(tool["name"] == "create_pix" and tool["requires_hitl"] for tool in status["tools"])
+    assert any(resource["uri"] == "itau://knowledge/tariff-pdf" for resource in status["resources"])
 
 
 def test_documental_policy_question_returns_official_source() -> None:
