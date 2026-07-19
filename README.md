@@ -21,6 +21,9 @@ Em 18 de julho de 2026, o projeto já possui:
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 - RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
+- respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e primeira sintese grounded para `Saque conta corrente`
+- RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
+- GitHub Actions verde apos estabilizacao dos testes de RAG em ambiente sem cache runtime
 
 ## Estratégia de Entrega
 
