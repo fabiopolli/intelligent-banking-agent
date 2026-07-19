@@ -38,8 +38,6 @@ Cada slice deve evoluir:
 5. atualização incremental deste README
 6. commit(s) do slice
 
-O workflow agora exige ativacao explicita de persona para trabalho significativo. Em um slice normal, Codex deve conduzir automaticamente Tech Lead, Architect quando necessario, QA/QE, Backend, Frontend, QA/QE novamente, Technical Writer e Tech Lead review, parando apenas em gates humanos ou ambiguidades bloqueantes.
-
 ## Como Rodar Localmente
 
 ### Passo a passo recomendado
