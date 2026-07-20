@@ -69,6 +69,9 @@ class DemoHarness:
                     draft,
                 )
             self._checkpoints.consume_pix_draft(payload.session_id)
+            policy_response = self._validate_pix_policy(payload, pix_request)
+            if policy_response is not None:
+                return policy_response
             if pix_request.amount >= settings.hitl_pix_threshold:
                 self._checkpoints.save_pending_pix(
                     payload.session_id,
@@ -107,6 +110,37 @@ class DemoHarness:
             amount=float(draft["amount"]),
             destination_key=str(draft["destination_key"]),
         )
+
+    def _validate_pix_policy(self, payload: ChatRequest, pix_request: PixCreateRequest) -> HarnessResponse | None:
+        details = self._pix_details(pix_request)
+        if self._contains_sensitive_credential(payload.message):
+            return self._response_builder.transaction_blocked_by_policy(
+                payload.session_id,
+                (
+                    "Por seguranca, nao envie senha, iToken, CVV ou dados completos de cartao nesta conversa. "
+                    "Para PIX, a confirmacao deve acontecer nos canais oficiais do banco."
+                ),
+                details,
+            )
+        if pix_request.amount > settings.pix_daily_limit:
+            return self._response_builder.transaction_blocked_by_policy(
+                payload.session_id,
+                (
+                    f"O valor informado excede o limite diario simulado de PIX de R$ {settings.pix_daily_limit:.2f}. "
+                    "Ajuste o valor ou altere o limite nos canais oficiais antes de tentar novamente."
+                ),
+                details,
+            )
+        if self._is_suspicious_pix_key(pix_request.destination_key, payload.message):
+            return self._response_builder.transaction_blocked_by_policy(
+                payload.session_id,
+                (
+                    "Alerta de Pix suspeito: esta chave ou atividade parece incomum. "
+                    "Nao vou executar a transacao nesta demo; confira o destinatario pelos canais oficiais."
+                ),
+                details,
+            )
+        return None
 
     def _merge_pix_draft(self, payload: ChatRequest) -> dict[str, str | float]:
         draft = self._checkpoints.get_pix_draft(payload.session_id) or {}
@@ -172,6 +206,30 @@ class DemoHarness:
             if not unicodedata.combining(char)
         )
         return without_accents
+
+    def _pix_details(self, pix_request: PixCreateRequest) -> dict:
+        return {
+            "amount": pix_request.amount,
+            "destination_key": pix_request.destination_key,
+        }
+
+    def _contains_sensitive_credential(self, message: str) -> bool:
+        normalized = self._normalize(message)
+        sensitive_patterns = [
+            r"\bsenha\b",
+            r"\bitoken\b",
+            r"\bcvv\b",
+            r"\bcodigo de seguranca\b",
+            r"\bnumero do cartao\b",
+            r"\bvalidade do cartao\b",
+        ]
+        return any(re.search(pattern, normalized) for pattern in sensitive_patterns)
+
+    def _is_suspicious_pix_key(self, destination_key: str, message: str) -> bool:
+        normalized_key = self._normalize(destination_key)
+        normalized_message = self._normalize(message)
+        suspicious_terms = {"suspeita", "fraude", "golpe", "laranja", "desconhecido"}
+        return any(term in normalized_key or term in normalized_message for term in suspicious_terms)
 
     def _is_confirmation_message(self, message: str) -> bool:
         normalized = message.lower().strip()

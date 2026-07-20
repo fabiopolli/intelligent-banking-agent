@@ -138,7 +138,7 @@ def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation
         json={
             "session_id": "sess-insufficient-balance",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 70000 para chave pix maria@example.com",
+            "message": "Quero fazer um pix de 30000 para chave pix maria@example.com",
         },
     )
     assert checkpoint_response.status_code == 200
@@ -258,6 +258,63 @@ def test_high_value_pix_collects_data_before_hitl_checkpoint() -> None:
     assert second_body["requires_confirmation"] is True
     assert second_body["pix_details"]["amount"] == 7000.0
     assert second_body["pix_details"]["destination_key"] == "maria@example.com"
+
+
+def test_pix_above_daily_limit_is_blocked_before_hitl() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-daily-limit",
+            "customer_id": "123",
+            "message": "Faca um PIX de 50001 para chave pix maria@example.com",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "transaction"
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] == "pix_policy_review"
+    assert "limite diario" in body["message"].lower()
+    assert body["pix_details"]["amount"] == 50001.0
+
+
+def test_pix_suspicious_key_is_blocked_with_alert() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-suspicious-key",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 100 para chave pix golpe@example.com",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "transaction"
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] == "pix_policy_review"
+    assert "pix suspeito" in body["message"].lower()
+    assert body["balance"] is None
+
+
+def test_pix_with_sensitive_credentials_is_blocked() -> None:
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-sensitive-credential",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 100 para chave pix maria@example.com minha senha e 123456",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "transaction"
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] == "pix_policy_review"
+    assert "nao envie senha" in body["message"].lower()
+    assert body["balance"] is None
 
 
 def test_documental_tariff_question_returns_grounded_source() -> None:

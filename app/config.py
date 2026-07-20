@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "intelligent-banking-agent"
     api_prefix: str = "/v1"
     hitl_pix_threshold: float = Field(default=5000.0, ge=0)
+    pix_daily_limit: float = Field(default=50000.0, ge=0)
     default_user_role: str = "customer"
     checkpoint_store_path: str = ".runtime/checkpoints.json"
     llm_grounded_faq_enabled: bool = False

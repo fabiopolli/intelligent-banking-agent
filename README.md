@@ -106,6 +106,7 @@ Resultado validado em 18 de julho de 2026:
 - `29 passed, 2 warnings` apos MCP real, Docker Model Runner provider e correcao visual Streamlit
 - `30 passed, 2 warnings` apos smoke MCP Streamable HTTP com cliente MCP real e reforco visual dark-mode dos Streamlits
 - `32 passed, 2 warnings` apos coleta multi-turno de valor/chave Pix e confirmacao visual com valor/chave no Streamlit
+- `35 passed, 2 warnings` apos preflight Pix com limite diario, alerta de chave suspeita e bloqueio de credenciais sensiveis no chat
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -266,6 +267,7 @@ Checklist rápido:
 - identifica fluxo de PIX
 - coleta valor e chave Pix de destino antes de executar
 - permite completar dados faltantes em turnos seguintes da mesma sessao
+- aplica preflight de seguranca inspirado no Pix Itau: limite diario simulado, alerta de chave/atividade suspeita e bloqueio quando a conversa contem senha, iToken, CVV ou dados completos de cartao
 - executa `PIX` abaixo do threshold diretamente
 - exige confirmação para `PIX` de alto valor
 - mostra valor e chave Pix na faixa de confirmação do chat antes de o cliente enviar `confirmo`

@@ -60,6 +60,20 @@ class ResponseBuilder:
             pix_details=pix_details or {},
         )
 
+    def transaction_blocked_by_policy(
+        self,
+        session_id: str,
+        message: str,
+        pix_details: dict | None = None,
+    ) -> HarnessResponse:
+        return HarnessResponse(
+            route="transaction",
+            session_id=session_id,
+            message=message,
+            pending_operation="pix_policy_review",
+            pix_details=pix_details or {},
+        )
+
     def transaction_success(self, session_id: str, balance: float, pix_details: dict | None = None) -> HarnessResponse:
         return HarnessResponse(
             route="transaction",
