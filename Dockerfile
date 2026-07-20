@@ -5,6 +5,7 @@ WORKDIR /app
 COPY pyproject.toml /app/pyproject.toml
 COPY app /app/app
 COPY frontend /app/frontend
+COPY scripts /app/scripts
 COPY tests /app/tests
 COPY .docs/tabela_geral_de_tarifas_pf_pdf.pdf /app/.docs/tabela_geral_de_tarifas_pf_pdf.pdf
 

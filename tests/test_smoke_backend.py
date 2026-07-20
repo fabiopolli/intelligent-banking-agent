@@ -1,3 +1,10 @@
+import asyncio
+import os
+import socket
+import subprocess
+import sys
+import time
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -12,6 +19,7 @@ from app.services.knowledge.llm import (
 )
 from app.services.knowledge.service import GroundedKnowledgeService
 from app.services.mock_bank import mock_bank_service
+from scripts.smoke_mcp_client import run_smoke
 
 
 client = TestClient(app)
@@ -386,6 +394,33 @@ def test_mcp_server_module_exposes_safe_agent_tools() -> None:
     assert any(resource["uri"] == "itau://knowledge/tariff-pdf" for resource in status["resources"])
 
 
+def test_mcp_streamable_http_client_smoke() -> None:
+    port = _find_free_port()
+    env = os.environ.copy()
+    env["MCP_SERVER_HOST"] = "127.0.0.1"
+    env["MCP_SERVER_PORT"] = str(port)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "app.mcp.server"],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        _wait_for_tcp("127.0.0.1", port)
+        result = asyncio.run(run_smoke(f"http://127.0.0.1:{port}/mcp"))
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+    assert "send_agent_message" in result["tools"]
+    assert "itau://knowledge/resources" in result["resources"]
+    assert result["pdf_ingested"] is True
+
+
 def test_documental_policy_question_returns_official_source() -> None:
     response = client.post(
         "/v1/channels/app/chat",
@@ -401,6 +436,23 @@ def test_documental_policy_question_returns_official_source() -> None:
     assert body["route"] == "faq_fast_path"
     assert "https://www.itau.com.br/relacoes-com-investidores/politicas/" in body["grounding_sources"]
     assert "politicas institucionais" in body["message"].lower()
+
+
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _wait_for_tcp(host: str, port: int, timeout_seconds: float = 15.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.25)
+            if sock.connect_ex((host, port)) == 0:
+                return
+        time.sleep(0.25)
+    raise TimeoutError(f"MCP server did not accept TCP connections on {host}:{port}.")
 
 
 def test_documental_question_without_context_fails_safely() -> None:

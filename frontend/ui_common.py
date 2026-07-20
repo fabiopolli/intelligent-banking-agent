@@ -25,10 +25,34 @@ def configure_page(title: str, wide: bool = True) -> None:
     st.markdown(
         """
         <style>
+        .stApp {
+            background: #0f141c;
+            color: #eef3f8;
+        }
         .main .block-container {
             padding-top: 1.4rem;
             padding-bottom: 2rem;
             max-width: 1440px;
+        }
+        section[data-testid="stSidebar"] {
+            background: #111721;
+            border-right: 1px solid #303846;
+        }
+        section[data-testid="stSidebar"] * {
+            color: #eef3f8 !important;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"],
+        div[data-testid="stExpander"],
+        div[data-testid="stAlert"],
+        div[data-testid="stChatMessage"],
+        div[data-testid="stForm"],
+        div[data-testid="stCodeBlock"] {
+            background-color: #141922 !important;
+            border-color: #303846 !important;
+            color: #eef3f8 !important;
+        }
+        div[data-testid="stAlert"] {
+            border-radius: 8px;
         }
         div[data-testid="stMetric"] {
             background: #141922;
@@ -43,6 +67,48 @@ def configure_page(title: str, wide: bool = True) -> None:
         div[data-testid="stMetric"] [data-testid="stMetricDelta"],
         div[data-testid="stMetric"] * {
             color: #f3f7fb !important;
+        }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+            font-size: 1.05rem !important;
+            line-height: 1.2 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] div {
+            overflow: visible !important;
+            text-overflow: clip !important;
+            white-space: normal !important;
+        }
+        div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+            font-size: 0.78rem !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        div[data-baseweb="input"],
+        div[data-baseweb="textarea"],
+        div[data-baseweb="select"] > div {
+            background-color: #111721 !important;
+            border-color: #3b4658 !important;
+            color: #f3f7fb !important;
+        }
+        input,
+        textarea,
+        [contenteditable="true"] {
+            color: #f3f7fb !important;
+            caret-color: #f3f7fb !important;
+        }
+        button[kind],
+        div[data-testid="stButton"] button,
+        div[data-testid="stFormSubmitButton"] button {
+            border-radius: 8px;
+            border-color: #3b4658;
+        }
+        div[data-testid="stMarkdownContainer"],
+        div[data-testid="stCaptionContainer"],
+        p,
+        span,
+        label {
+            color: #eef3f8;
         }
         .hero-band {
             border: 1px solid #303846;

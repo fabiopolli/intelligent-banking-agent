@@ -103,7 +103,8 @@ Resultado validado em 18 de julho de 2026:
 
 - `27 passed, 2 warnings`
 - `29 passed, 2 warnings` apos MCP real, Docker Model Runner provider e correcao visual Streamlit
-- Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel, KB com `pdf_ingested=true` e `pytest` dentro do container API (`27 passed, 2 warnings`)
+- `30 passed, 2 warnings` apos smoke MCP Streamable HTTP com cliente MCP real e reforco visual dark-mode dos Streamlits
+- Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
 
@@ -183,6 +184,28 @@ Para rodar o servidor MCP real fora do Compose:
 
 ```powershell
 .\.venv\Scripts\python -m app.mcp.server
+```
+
+O endpoint `http://localhost:8600/mcp` usa MCP Streamable HTTP. Um `GET` simples no navegador ou em `curl` pode retornar `406 Not Acceptable`, porque o servidor espera o protocolo MCP e headers de negociação do cliente, não uma rota REST comum. Para validar o servidor, use um cliente MCP:
+
+```powershell
+.\.venv\Scripts\python scripts\smoke_mcp_client.py --url http://127.0.0.1:8600/mcp
+```
+
+Saída esperada:
+
+```json
+{
+  "tools": ["search_tariff_knowledge", "send_agent_message", "get_demo_status"],
+  "resources": ["itau://mcp/tools", "itau://knowledge/resources"],
+  "pdf_ingested": true
+}
+```
+
+O mesmo smoke também roda no pytest e inicia um servidor MCP temporário em porta livre:
+
+```powershell
+.\.venv\Scripts\python -m pytest tests/test_smoke_backend.py::test_mcp_streamable_http_client_smoke -q
 ```
 
 Tools expostas pelo servidor MCP real:
