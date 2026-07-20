@@ -64,8 +64,9 @@ class MockBankService:
 
     def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict:
         customer = self._require_customer(payload.customer_id)
+        used_limit = max(customer.card_limit - customer.available_limit, 0.0)
         customer.card_limit = payload.new_limit
-        customer.available_limit = min(customer.available_limit, payload.new_limit)
+        customer.available_limit = max(payload.new_limit - used_limit, 0.0)
         customer.history.append({"action": "LIMIT_CHANGE", "new_limit": payload.new_limit})
         audit_log_service.append(
             customer.customer_id,

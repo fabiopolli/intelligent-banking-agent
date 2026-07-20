@@ -83,10 +83,12 @@ def test_stateful_limit_update_smoke() -> None:
     )
     assert update_response.status_code == 200
     assert update_response.json()["card_limit"] == 15000
+    assert update_response.json()["available_limit"] == 15000
 
     profile_response = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
     assert profile_response.status_code == 200
     assert profile_response.json()["card_limit"] == 15000
+    assert profile_response.json()["available_limit"] == 15000
 
     audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
@@ -128,10 +130,12 @@ def test_limit_increase_requires_confirmation_and_updates_after_resume() -> None
     assert resume_body["route"] == "core_banking"
     assert resume_body["requires_confirmation"] is False
     assert resume_body["limit_details"]["current_limit"] == 15000.0
+    assert resume_body["limit_details"]["available_limit"] == 15000.0
 
     profile_response = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
     assert profile_response.status_code == 200
     assert profile_response.json()["card_limit"] == 15000.0
+    assert profile_response.json()["available_limit"] == 15000.0
 
     audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
