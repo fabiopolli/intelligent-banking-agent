@@ -19,10 +19,9 @@ class TariffAnswerBuilder:
 
         if subject == "pacotes e servicos":
             return (
-                "Voce pode consultar tarifas e pacotes pelo app Itau buscando por 'tarifas e pacotes' "
-                f"ou pela Tabela Geral de Tarifas PF do Itau{page_hint}. "
-                "Tambem posso te ajudar por aqui: me diga o servico, como saque, segunda via, "
-                "transferencia, conta poupanca ou pacote de servicos."
+                "Claro. Voce pode consultar tarifas e pacotes pelo app Itau buscando por "
+                "'tarifas e pacotes'. Tambem posso te ajudar por aqui: me diga o servico, "
+                "como saque, segunda via, transferencia, conta poupanca ou pacote de servicos."
             )
 
         if tariff_context is not None:
@@ -31,16 +30,16 @@ class TariffAnswerBuilder:
                 return guidance.message
 
             return (
-                f"Sobre {subject} em {tariff_context}, encontrei referencia na Tabela Geral de Tarifas PF "
-                f"do Itau{page_hint}. Voce pode conferir o valor pelo app em tarifas e pacotes, "
-                "ou continuar por aqui me dizendo se quer consultar pacote essencial, pacote contratado "
-                "ou uso avulso do servico."
+                f"Claro. Para {subject} em {tariff_context}, o valor pode depender do seu pacote, "
+                "do canal usado e do tipo de conta. Voce pode conferir o valor pelo app em "
+                "'tarifas e pacotes', ou continuar por aqui me dizendo se quer consultar pacote "
+                "essencial, pacote contratado ou uso avulso do servico."
             )
 
         return (
-            f"Sobre {subject}, encontrei referencia na Tabela Geral de Tarifas PF do Itau{page_hint}. "
-            "A tarifa pode variar por pacote, canal e tipo de conta. Para eu te orientar melhor no chat, "
-            "me diga o contexto: conta corrente, poupanca, terminal Itau, Banco24Horas ou outro canal."
+            f"Claro. Para {subject}, a tarifa pode variar conforme pacote, canal e tipo de conta. "
+            "Para eu te orientar melhor no chat, me diga o contexto: conta corrente, poupanca, "
+            "terminal Itau, Banco24Horas ou outro canal."
         )
 
     def _extract_subject(self, normalized_query: str) -> str:
@@ -79,9 +78,8 @@ class TariffAnswerBuilder:
         return TariffGuidance(
             page_hint=page_hint,
             message=(
-                f"Para saque em conta corrente, encontrei uma orientacao mais especifica na Tabela Geral "
-                f"de Tarifas PF do Itau{page_hint}: os primeiros saques previstos na quantidade mensal "
-                "do pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
+                "Claro. Para saque em conta corrente, os primeiros saques previstos na quantidade mensal "
+                "do seu pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
                 "devem seguir os canais previstos, como caixas eletronicos e Banco24Horas. Pode haver "
                 "tarifa avulsa se voce ultrapassar a quantidade incluida no pacote ou usar um canal fora "
                 "das regras do seu pacote. Pelo app, procure por 'tarifas e pacotes' para conferir o valor "

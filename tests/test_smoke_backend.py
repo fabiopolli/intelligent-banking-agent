@@ -442,9 +442,12 @@ def test_documental_tariff_question_returns_grounded_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
-    assert "tabela geral de tarifas pf" in body["message"].lower()
+    assert "tarifas e pacotes" in body["message"].lower()
     assert "tambem posso te ajudar por aqui" in body["message"].lower()
     assert "painel tecnico" not in body["message"].lower()
+    assert "tabela geral de tarifas" not in body["message"].lower()
+    assert "pagina" not in body["message"].lower()
+    assert "referencia" not in body["message"].lower()
 
 
 def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
@@ -465,6 +468,9 @@ def test_documental_tariff_answer_avoids_raw_pdf_table_dump() -> None:
     assert "a tarifa pode variar" in body["message"].lower()
     assert "fonte recuperada" not in body["message"].lower()
     assert "trecho usado" not in body["message"].lower()
+    assert "tabela geral de tarifas" not in body["message"].lower()
+    assert "pagina" not in body["message"].lower()
+    assert "referencia" not in body["message"].lower()
 
 
 def test_documental_tariff_followup_keeps_controlled_customer_answer() -> None:
@@ -485,6 +491,9 @@ def test_documental_tariff_followup_keeps_controlled_customer_answer() -> None:
     assert "banco24horas" in body["message"].lower()
     assert "trecho usado" not in body["message"].lower()
     assert "correntistas tem direito" not in body["message"].lower()
+    assert "tabela geral de tarifas" not in body["message"].lower()
+    assert "pagina" not in body["message"].lower()
+    assert "referencia" not in body["message"].lower()
 
 
 def test_documental_tariff_followup_with_context_does_not_loop() -> None:
@@ -505,6 +514,9 @@ def test_documental_tariff_followup_with_context_does_not_loop() -> None:
     assert "tarifas e pacotes" in body["message"].lower()
     assert "me diga o contexto" not in body["message"].lower()
     assert "trecho usado" not in body["message"].lower()
+    assert "tabela geral de tarifas" not in body["message"].lower()
+    assert "pagina" not in body["message"].lower()
+    assert "referencia" not in body["message"].lower()
 
 
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
@@ -587,6 +599,9 @@ def test_tariff_answer_uses_controlled_builder_when_synthesizer_falls_back() -> 
     assert "saques" in result["message"].lower()
     assert "a tarifa pode variar" in result["message"].lower()
     assert "trecho bruto" not in result["message"].lower()
+    assert "tabela geral de tarifas" not in result["message"].lower()
+    assert "pagina" not in result["message"].lower()
+    assert "referencia" not in result["message"].lower()
     assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
     assert synthesizer.calls
 
@@ -626,6 +641,14 @@ def test_openai_grounded_prompt_contains_only_question_and_official_context() ->
     assert "Nao cite fontes" in prompt
     assert "checkpoint" not in prompt.lower()
     assert "customer_id" not in prompt.lower()
+
+
+def test_grounded_synthesizer_rejects_prompt_echo_as_customer_answer() -> None:
+    synthesizer = OpenAIGroundedFaqSynthesizer()
+
+    assert synthesizer._looks_like_prompt_echo(  # noqa: SLF001
+        "Pergunta do cliente: Tem tarifa para saque? Contexto oficial aprovado pelo Harness..."
+    )
 
 
 def test_docker_model_runner_provider_is_selectable(monkeypatch) -> None:  # noqa: ANN001

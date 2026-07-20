@@ -170,7 +170,7 @@ $env:DOCKER_MODEL_RUNNER_BASE_URL="http://localhost:12434/engines/v1"
 $env:DOCKER_MODEL_RUNNER_MODEL="ai/smollm2"
 ```
 
-Para Docker Compose, o `docker-compose.yml` ja aponta containers para `http://model-runner.docker.internal/engines/v1` quando `LLM_PROVIDER=docker_model_runner`.
+Para Docker Compose, o `docker-compose.yml` ja aponta containers para `http://host.docker.internal:12434/engines/v1` quando `LLM_PROVIDER=docker_model_runner`. Em Docker Desktop no Windows, esse endpoint e o caminho mais direto para o container acessar o Model Runner que esta rodando no host.
 
 O Model Runner e opcional: o projeto continua subindo sem ele. A API do Model Runner nao e autenticada, portanto deve ficar restrita ao ambiente local/interno da demo.
 

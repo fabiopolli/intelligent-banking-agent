@@ -125,6 +125,10 @@ class OpenAIGroundedFaqSynthesizer:
             message = self._fallback.synthesize(query, contexts)
             self.last_trace = self._fallback_trace(prompt, contexts, start, "empty_response")
             return message
+        if self._looks_like_prompt_echo(text):
+            message = self._fallback.synthesize(query, contexts)
+            self.last_trace = self._fallback_trace(prompt, contexts, start, "prompt_echo")
+            return message
         self.last_trace = {
             "provider": self.provider_name,
             "model": settings.llm_model,
@@ -201,6 +205,18 @@ class OpenAIGroundedFaqSynthesizer:
             return usage
         return None
 
+    def _looks_like_prompt_echo(self, text: str) -> bool:
+        normalized = text.lower()
+        blocked_terms = [
+            "pergunta do cliente:",
+            "contexto oficial aprovado",
+            "fonte 1:",
+            "fonte 2:",
+            "trecho oficial:",
+            "nao cite fontes",
+        ]
+        return any(term in normalized for term in blocked_terms)
+
 
 class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
     provider_name = "docker-model-runner"
@@ -252,6 +268,10 @@ class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
         if not text:
             message = self._fallback.synthesize(query, contexts)
             self.last_trace = self._fallback_trace(prompt, contexts, start, "empty_response")
+            return message
+        if self._looks_like_prompt_echo(text):
+            message = self._fallback.synthesize(query, contexts)
+            self.last_trace = self._fallback_trace(prompt, contexts, start, "prompt_echo")
             return message
 
         self.last_trace = {
