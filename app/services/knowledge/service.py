@@ -63,14 +63,17 @@ class GroundedKnowledgeService:
 
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
-        if self._is_tariff_query(query):
-            tools_called.append("controlled_tariff_answer_builder")
-            message = self._tariff_answers.build(query, primary)
-            llm_trace = None
-        elif self._synthesizer is not None:
+        if self._synthesizer is not None:
             tools_called.append("grounded_faq_synthesizer")
             message = self._synthesizer.synthesize(query, retrieved)
             llm_trace = getattr(self._synthesizer, "last_trace", {}) or {}
+            if self._is_tariff_query(query) and llm_trace.get("fallback_used"):
+                tools_called.append("controlled_tariff_answer_builder")
+                message = self._tariff_answers.build(query, primary)
+        elif self._is_tariff_query(query):
+            tools_called.append("controlled_tariff_answer_builder")
+            message = self._tariff_answers.build(query, primary)
+            llm_trace = None
         elif "politica" in query.lower() or "governanca" in query.lower():
             message = (
                 "Para politicas institucionais, encontrei a fonte oficial de relacoes com investidores "

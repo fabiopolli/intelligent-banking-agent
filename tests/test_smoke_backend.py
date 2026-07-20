@@ -31,10 +31,20 @@ class RecordingSynthesizer:
 
     def __init__(self) -> None:
         self.calls: list[tuple[str, list[str]]] = []
+        self.last_trace = {"provider": self.provider_name, "fallback_used": False}
 
     def synthesize(self, query, contexts) -> str:  # noqa: ANN001
         self.calls.append((query, [context.source for context in contexts]))
         return "Resposta sintetizada somente com contexto oficial recuperado."
+
+
+class FallbackRecordingSynthesizer(RecordingSynthesizer):
+    provider_name = "fake-fallback-recording"
+
+    def synthesize(self, query, contexts) -> str:  # noqa: ANN001
+        self.calls.append((query, [context.source for context in contexts]))
+        self.last_trace = {"provider": self.provider_name, "fallback_used": True}
+        return "Pagina 23. trecho bruto do PDF que nao deve aparecer."
 
 
 def test_chat_balance_smoke() -> None:
@@ -554,16 +564,31 @@ def test_grounded_faq_synthesizer_is_not_called_without_official_context() -> No
     assert synthesizer.calls == []
 
 
-def test_tariff_answer_keeps_controlled_builder_when_synthesizer_is_available() -> None:
+def test_tariff_answer_uses_grounded_synthesizer_when_available() -> None:
     synthesizer = RecordingSynthesizer()
     service = GroundedKnowledgeService(synthesizer=synthesizer)
 
     message, sources = service.answer("Tem tarifa para saque?")
 
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in sources
-    assert "saques" in message.lower()
-    assert "r$" not in message.lower()
-    assert synthesizer.calls == []
+    assert message == "Resposta sintetizada somente com contexto oficial recuperado."
+    assert synthesizer.calls
+    assert synthesizer.calls[0][0] == "Tem tarifa para saque?"
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in synthesizer.calls[0][1]
+
+
+def test_tariff_answer_uses_controlled_builder_when_synthesizer_falls_back() -> None:
+    synthesizer = FallbackRecordingSynthesizer()
+    service = GroundedKnowledgeService(synthesizer=synthesizer)
+
+    result = service.answer_with_trace("Tem tarifa para saque?")
+
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in result["sources"]
+    assert "saques" in result["message"].lower()
+    assert "a tarifa pode variar" in result["message"].lower()
+    assert "trecho bruto" not in result["message"].lower()
+    assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
+    assert synthesizer.calls
 
 
 def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> None:  # noqa: ANN001
@@ -574,7 +599,9 @@ def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> 
     message, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
 
     assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
-    assert "fontes oficiais recuperadas" in message.lower()
+    assert "posso te orientar assim" in message.lower()
+    assert "fontes oficiais recuperadas" not in message.lower()
+    assert "fonte" not in message.lower()
     assert synthesizer.last_trace["provider"] == "openai-responses"
     assert synthesizer.last_trace["fallback_used"] is True
     assert synthesizer.last_trace["fallback_reason"] == "missing_api_key"
@@ -596,6 +623,7 @@ def test_openai_grounded_prompt_contains_only_question_and_official_context() ->
 
     assert "Pergunta do cliente: Como falo com o Itau pelo WhatsApp?" in prompt
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in prompt
+    assert "Nao cite fontes" in prompt
     assert "checkpoint" not in prompt.lower()
     assert "customer_id" not in prompt.lower()
 

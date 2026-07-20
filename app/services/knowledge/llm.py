@@ -28,13 +28,13 @@ class LocalGroundedFaqSynthesizer:
         start = time.perf_counter()
         primary = contexts[0]
         secondary_sources = [item.source for item in contexts[1:]]
-        source_note = ""
+        context_note = ""
         if secondary_sources:
-            source_note = " Tambem cruzei com outra fonte oficial recuperada."
+            context_note = " Tambem conferi outro contexto relacionado antes de responder."
 
         message = (
-            "Com base nas fontes oficiais recuperadas, encontrei uma orientacao relacionada a sua pergunta. "
-            f"{self._compact(primary.text)}{source_note}"
+            "Posso te orientar assim: "
+            f"{self._compact(primary.text)}{context_note}"
         )
         self.last_trace = {
             "provider": self.provider_name,
@@ -103,7 +103,9 @@ class OpenAIGroundedFaqSynthesizer:
                             "Use somente o contexto oficial aprovado recebido. "
                             "Nao invente tarifas, valores, regras, canais ou prazos. "
                             "Nao solicite nem execute ferramentas, operacoes bancarias ou side effects. "
-                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente."
+                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente. "
+                            "Nao cite nomes de arquivos, URLs, paginas, fontes, trechos ou contexto aprovado "
+                            "na resposta ao cliente; essas evidencias ficam apenas no payload tecnico."
                         ),
                     },
                     {
@@ -154,7 +156,8 @@ class OpenAIGroundedFaqSynthesizer:
             f"Pergunta do cliente: {query}\n\n"
             "Contexto oficial aprovado pelo Harness:\n"
             f"{joined_context}\n\n"
-            "Responda em portugues do Brasil, de forma curta, clara e apropriada para chat."
+            "Responda em portugues do Brasil, de forma curta, clara e apropriada para chat. "
+            "Nao cite fontes, URLs, nomes de arquivos, paginas, trechos ou o contexto aprovado na conversa."
         )
 
     def _fallback_trace(
@@ -230,7 +233,9 @@ class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
                             "Use somente o contexto oficial aprovado recebido. "
                             "Nao invente tarifas, valores, regras, canais ou prazos. "
                             "Nao solicite nem execute ferramentas, operacoes bancarias ou side effects. "
-                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente."
+                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente. "
+                            "Nao cite nomes de arquivos, URLs, paginas, fontes, trechos ou contexto aprovado "
+                            "na resposta ao cliente; essas evidencias ficam apenas no payload tecnico."
                         ),
                     },
                     {"role": "user", "content": prompt},

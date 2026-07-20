@@ -22,7 +22,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 - RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
-- respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e primeira sintese grounded para `Saque conta corrente`
+- respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e sintese LLM grounded quando um provider estiver habilitado
 - RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
 - provider OpenAI opcional para FAQ/RAG grounded via Responses API, desligado por padrao e com fallback local deterministico
 - provider Docker Model Runner opcional para FAQ/RAG grounded via API OpenAI-compatible local, desligado por padrao e com fallback local deterministico
@@ -108,6 +108,7 @@ Resultado validado em 18 de julho de 2026:
 - `32 passed, 2 warnings` apos coleta multi-turno de valor/chave Pix e confirmacao visual com valor/chave no Streamlit
 - `35 passed, 2 warnings` apos preflight Pix com limite diario, alerta de chave suspeita e bloqueio de credenciais sensiveis no chat
 - `38 passed, 2 warnings` apos aumento de limite multi-turno com consulta de perfil, elegibilidade, confirmacao HITL, checkpoint e auditoria
+- `39 passed, 2 warnings` apos polimento de chat RAG/LLM para tarifas, sem fontes visiveis no chat do cliente e com fallback controlado quando provider LLM falha
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -154,7 +155,7 @@ $env:OPENAI_API_KEY="<sua-chave>"
 $env:LLM_MODEL="gpt-5.6-luna"
 ```
 
-Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro.
+Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro. As fontes e o contexto aprovado ficam no payload do Harness e no painel tecnico; o chat do cliente recebe apenas a resposta em linguagem natural.
 
 ### FAQ/RAG com Docker Model Runner
 
@@ -181,6 +182,14 @@ A demo usa LLM apenas na sintese documental grounded de FAQ/RAG. A evolucao plan
 
 1. Conversa mais natural com memoria curta e coleta de dados multi-turno, mantendo roteamento, RBAC, HITL, auditoria e execucao de tools no Harness deterministico.
 2. LLM como planejadora/explicadora controlada, propondo proximos passos e chamadas MCP, mas sem executar operacoes bancarias diretamente. O Harness continua validando perfil, autorizacao, politica de risco, confirmacao e auditoria antes de qualquer side effect.
+
+Para tarifas, a ordem atual e:
+
+1. Harness classifica a pergunta documental.
+2. Harness recupera e ranqueia contexto oficial aprovado.
+3. Se houver LLM habilitada, a LLM sintetiza uma resposta curta sem citar arquivos, URLs, paginas ou "fontes" na conversa do cliente.
+4. Se a LLM estiver desligada, ausente ou falhar, o builder controlado de tarifas responde sem despejar tabela crua do PDF.
+5. Em todos os casos, `grounding_sources`, prompt, contexto aprovado, provider/model, fallback e token usage permanecem disponiveis no payload tecnico e no painel do avaliador.
 
 ## MCP, Tools e Resources
 
@@ -309,13 +318,12 @@ Checklist rápido:
 - respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
-- saque em conta corrente usa sintese grounded a partir da evidencia oficial recuperada do PDF
-- FAQ e politicas podem usar o provider OpenAI opcional quando ha fonte oficial recuperada
-- tarifas continuam no builder controlado para evitar invencao de valores ou despejo de tabela crua
+- tarifa, FAQ e politicas podem usar o provider LLM opcional quando ha fonte oficial recuperada
+- tarifas sem LLM, sem contexto suficiente ou com falha de provider continuam no builder controlado para evitar invencao de valores ou despejo de tabela crua
 - o resumo oficial do PDF de tarifas permanece carregado mesmo com ingestao completa, estabilizando o RAG em CI sem cache runtime
 - RAG organizado em modulos coesos em `app/services/knowledge/` para fontes, ingestao, retrieval, reranking, tokenizacao, schemas e sintese
 - fontes retornadas em `grounding_sources` no payload do Harness
-- frontend mostra a quantidade e a lista de fontes oficiais retornadas
+- chat do cliente nao mostra fontes; painel tecnico mostra a quantidade e a lista de fontes oficiais retornadas
 - falha segura quando nao ha contexto oficial suficiente
 
 ### Auditoria Critica

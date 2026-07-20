@@ -103,12 +103,6 @@ def render_customer_action() -> None:
             unsafe_allow_html=True,
         )
 
-    sources = result.get("grounding_sources") or []
-    if sources:
-        with st.expander("Fontes oficiais usadas", expanded=False):
-            for source in sources:
-                st.markdown(f"<div class='source-pill'>{source}</div>", unsafe_allow_html=True)
-
     latency = st.session_state.get("last_latency_ms")
     if latency is not None:
         st.caption(f"Tempo de resposta: {latency} ms")
