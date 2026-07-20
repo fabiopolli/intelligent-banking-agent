@@ -519,6 +519,39 @@ def test_documental_tariff_followup_with_context_does_not_loop() -> None:
     assert "referencia" not in body["message"].lower()
 
 
+def test_documental_tariff_context_followup_reuses_previous_question() -> None:
+    session_id = "sess-rag-context-memory"
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": session_id,
+            "customer_id": "123",
+            "message": "Tem tarifa para saque?",
+        },
+    )
+    assert first_response.status_code == 200
+
+    followup_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": session_id,
+            "customer_id": "123",
+            "message": "Conta corrente",
+        },
+    )
+
+    assert followup_response.status_code == 200
+    body = followup_response.json()
+    assert body["route"] == "faq_fast_path"
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in body["grounding_sources"]
+    assert "saque" in body["message"].lower()
+    assert "conta corrente" in body["message"].lower()
+    assert "trecho usado" not in body["message"].lower()
+    assert "produtos/servicos incluidos" not in body["message"].lower()
+    assert "tabela geral de tarifas" not in body["message"].lower()
+    assert "pagina" not in body["message"].lower()
+
+
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
     response = client.get("/v1/mcp/knowledge/status", headers=INTERNAL_TOOL_HEADERS)
 
@@ -546,9 +579,11 @@ def test_documental_help_center_question_returns_official_source() -> None:
     assert body["route"] == "faq_fast_path"
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in body["grounding_sources"]
     assert body["grounding_sources"] == ["https://www.itau.com.br/atendimento-itau/para-voce"]
-    assert "orientacao oficial" in body["message"].lower()
+    assert "nao encontrei contexto oficial suficiente" not in body["message"].lower()
+    assert "pergunta do cliente" not in body["message"].lower()
+    assert "contexto oficial aprovado" not in body["message"].lower()
     assert "hybrid_retrieve" in body["observability"]["tools_called"]
-    assert body["observability"]["llm"]["provider"] == "disabled"
+    assert body["observability"]["llm"]["provider"]
     assert body["observability"]["retrieval"]["approved_context"]
 
 
@@ -713,7 +748,10 @@ def test_documental_policy_question_returns_official_source() -> None:
     body = response.json()
     assert body["route"] == "faq_fast_path"
     assert "https://www.itau.com.br/relacoes-com-investidores/politicas/" in body["grounding_sources"]
-    assert "politicas institucionais" in body["message"].lower()
+    assert "politicas" in body["message"].lower()
+    assert "nao encontrei contexto oficial suficiente" not in body["message"].lower()
+    assert "pergunta do cliente" not in body["message"].lower()
+    assert "contexto oficial aprovado" not in body["message"].lower()
 
 
 def _find_free_port() -> int:

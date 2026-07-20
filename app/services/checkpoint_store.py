@@ -130,6 +130,21 @@ class CheckpointStore:
             if key in {"customer_id"}
         }
 
+    def save_documental_draft(self, session_id: str, draft: dict[str, str]) -> None:
+        checkpoints = self._read_all()
+        checkpoints[session_id] = {"type": "documental_draft", **draft}
+        self._write_all(checkpoints)
+
+    def get_documental_draft(self, session_id: str) -> dict[str, str] | None:
+        raw_operation = self._read_all().get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "documental_draft":
+            return None
+        return {
+            key: str(value)
+            for key, value in raw_operation.items()
+            if key in {"last_query"}
+        }
+
     def reset(self) -> None:
         if self._storage_path.exists():
             self._storage_path.unlink()

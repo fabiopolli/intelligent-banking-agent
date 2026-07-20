@@ -51,8 +51,15 @@ class DemoHarness:
             return self._resume_pending_operation(payload)
         if self._has_collectable_limit_draft(payload):
             return self._dispatch("core_banking_limit", payload)
-        route = self._classify_intent(payload.message)
-        return self._dispatch(route, payload)
+        enriched_payload = self._enrich_documental_followup(payload)
+        route = self._classify_intent(enriched_payload.message)
+        response = self._dispatch(route, enriched_payload)
+        if route == "faq_fast_path" and response.grounding_sources:
+            self._checkpoints.save_documental_draft(
+                payload.session_id,
+                {"last_query": enriched_payload.message},
+            )
+        return response
 
     @traceable(name="Intent Router", run_type="chain")
     def _classify_intent(self, message: str) -> str:
@@ -301,6 +308,35 @@ class DemoHarness:
         normalized = self._normalize(message)
         increase_terms = {"aumentar", "aumento", "elevar", "subir", "alterar"}
         return "limite" in normalized and any(term in normalized for term in increase_terms)
+
+    def _enrich_documental_followup(self, payload: ChatRequest) -> ChatRequest:
+        draft = self._checkpoints.get_documental_draft(payload.session_id)
+        if draft is None or not self._is_documental_context_followup(payload.message):
+            return payload
+        last_query = draft.get("last_query", "")
+        if not last_query:
+            return payload
+        return ChatRequest(
+            session_id=payload.session_id,
+            customer_id=payload.customer_id,
+            message=f"{last_query} {payload.message}",
+            role=payload.role,
+        )
+
+    def _is_documental_context_followup(self, message: str) -> bool:
+        normalized = self._normalize(message)
+        context_terms = {
+            "banco24horas",
+            "caixa eletronico",
+            "conta corrente",
+            "conta poupanca",
+            "pacote contratado",
+            "pacote essencial",
+            "poupanca",
+            "terminal itau",
+            "uso avulso",
+        }
+        return len(normalized.split()) <= 4 and any(term in normalized for term in context_terms)
 
     def _is_confirmation_message(self, message: str) -> bool:
         normalized = message.lower().strip()
