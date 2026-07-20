@@ -14,7 +14,7 @@ DEFAULT_INTERNAL_TOOL_KEY = os.getenv("INTERNAL_TOOL_API_KEY", "demo-internal-to
 PROMPTS = {
     "Tarifas": "Onde consulto tarifas e pacotes de servicos?",
     "Saldo": "Qual meu saldo?",
-    "Limite": "Qual meu limite?",
+    "Limite": "Quero aumentar o limite do meu cartao para R$ 15.000",
     "PIX": "Quero fazer um PIX de 7000 para chave pix maria@example.com",
     "Emergencia": "Fui roubado",
 }

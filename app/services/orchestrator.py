@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
 from app.schemas.messages import ChatRequest
-from app.schemas.outbound import PixCreateRequest
+from app.schemas.outbound import CardLimitUpdateRequest, PixCreateRequest
 from app.security.rbac import RBACService
 from app.services.customer_support import CustomerSupportService
 from app.services.knowledge_base import GroundedKnowledgeService, knowledge_service
@@ -19,6 +19,12 @@ class PendingPixOperation:
     customer_id: str
     amount: float
     destination_key: str
+
+
+@dataclass
+class PendingLimitOperation:
+    customer_id: str
+    requested_limit: float
 
 
 class EmergencyNode:
@@ -111,6 +117,19 @@ class TransactionNode:
             ),
         )
 
+    def execute_limit_update(self, session_id: str, operation: PendingLimitOperation) -> HarnessResponse:
+        result = mock_bank_service.update_card_limit(
+            CardLimitUpdateRequest(
+                customer_id=operation.customer_id,
+                new_limit=operation.requested_limit,
+            )
+        )
+        return self._response_builder.limit_update_success(
+            session_id,
+            float(result["card_limit"]),
+            float(result["available_limit"]),
+        )
+
 
 class FaqNode:
     def __init__(
@@ -169,6 +188,9 @@ class DemoOrchestrator:
         pending_operation: PendingPixOperation,
     ) -> HarnessResponse:
         return self._transaction.resume_pix(payload, auth, pending_operation)
+
+    def limit_update_execute(self, session_id: str, operation: PendingLimitOperation) -> HarnessResponse:
+        return self._transaction.execute_limit_update(session_id, operation)
 
     def faq_fast_path(self, payload: ChatRequest) -> HarnessResponse:
         return self._faq.handle(payload)

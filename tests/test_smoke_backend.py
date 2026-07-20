@@ -94,6 +94,103 @@ def test_stateful_limit_update_smoke() -> None:
     assert audit_body[-1]["event_type"] == "LIMIT_CHANGE"
 
 
+def test_limit_increase_requires_confirmation_and_updates_after_resume() -> None:
+    mock_bank_service.reset()
+    checkpoint_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-increase",
+            "customer_id": "123",
+            "message": "Quero aumentar o limite do meu cartao para R$ 15.000",
+        },
+    )
+
+    assert checkpoint_response.status_code == 200
+    checkpoint_body = checkpoint_response.json()
+    assert checkpoint_body["route"] == "core_banking"
+    assert checkpoint_body["requires_confirmation"] is True
+    assert checkpoint_body["pending_operation"] == "update_card_limit"
+    assert checkpoint_body["limit_details"]["current_limit"] == 10000.0
+    assert checkpoint_body["limit_details"]["requested_limit"] == 15000.0
+    assert checkpoint_body["limit_details"]["eligible"] is True
+
+    resume_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-increase",
+            "customer_id": "123",
+            "message": "confirmo",
+        },
+    )
+
+    assert resume_response.status_code == 200
+    resume_body = resume_response.json()
+    assert resume_body["route"] == "core_banking"
+    assert resume_body["requires_confirmation"] is False
+    assert resume_body["limit_details"]["current_limit"] == 15000.0
+
+    profile_response = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
+    assert profile_response.status_code == 200
+    assert profile_response.json()["card_limit"] == 15000.0
+
+    audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
+    assert audit_response.status_code == 200
+    assert audit_response.json()[-1]["event_type"] == "LIMIT_CHANGE"
+
+
+def test_limit_increase_without_amount_collects_details() -> None:
+    mock_bank_service.reset()
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-missing-amount",
+            "customer_id": "123",
+            "message": "Quero aumentar o limite do meu cartao",
+        },
+    )
+
+    assert first_response.status_code == 200
+    first_body = first_response.json()
+    assert first_body["route"] == "core_banking"
+    assert first_body["requires_confirmation"] is False
+    assert first_body["pending_operation"] == "collect_limit_details"
+    assert "novo valor desejado" in first_body["message"].lower()
+
+    second_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-missing-amount",
+            "customer_id": "123",
+            "message": "R$ 15.000",
+        },
+    )
+
+    assert second_response.status_code == 200
+    second_body = second_response.json()
+    assert second_body["requires_confirmation"] is True
+    assert second_body["pending_operation"] == "update_card_limit"
+    assert second_body["limit_details"]["requested_limit"] == 15000.0
+
+
+def test_limit_increase_above_policy_is_blocked_before_confirmation() -> None:
+    mock_bank_service.reset()
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-above-policy",
+            "customer_id": "123",
+            "message": "Quero aumentar o limite do meu cartao para R$ 25.000",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "core_banking"
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] == "limit_policy_review"
+    assert body["limit_details"]["eligible"] is False
+
+
 def test_empty_message_is_rejected() -> None:
     response = client.post(
         "/v1/channels/app/chat",

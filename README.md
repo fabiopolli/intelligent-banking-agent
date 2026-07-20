@@ -107,6 +107,7 @@ Resultado validado em 18 de julho de 2026:
 - `30 passed, 2 warnings` apos smoke MCP Streamable HTTP com cliente MCP real e reforco visual dark-mode dos Streamlits
 - `32 passed, 2 warnings` apos coleta multi-turno de valor/chave Pix e confirmacao visual com valor/chave no Streamlit
 - `35 passed, 2 warnings` apos preflight Pix com limite diario, alerta de chave suspeita e bloqueio de credenciais sensiveis no chat
+- `38 passed, 2 warnings` apos aumento de limite multi-turno com consulta de perfil, elegibilidade, confirmacao HITL, checkpoint e auditoria
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -173,6 +174,13 @@ Para Docker Compose, o `docker-compose.yml` ja aponta containers para `http://mo
 O Model Runner e opcional: o projeto continua subindo sem ele. A API do Model Runner nao e autenticada, portanto deve ficar restrita ao ambiente local/interno da demo.
 
 Evidencia local em 18 de julho de 2026: `docker model status` reportou `Docker Model Runner is running`, `docker model list` encontrou `ai/smollm2`, e o provider `docker_model_runner` respondeu sem fallback com `token_usage`.
+
+### Evolucao Para Chat Inteligente
+
+A demo usa LLM apenas na sintese documental grounded de FAQ/RAG. A evolucao planejada do chat acontece em duas ondas:
+
+1. Conversa mais natural com memoria curta e coleta de dados multi-turno, mantendo roteamento, RBAC, HITL, auditoria e execucao de tools no Harness deterministico.
+2. LLM como planejadora/explicadora controlada, propondo proximos passos e chamadas MCP, mas sem executar operacoes bancarias diretamente. O Harness continua validando perfil, autorizacao, politica de risco, confirmacao e auditoria antes de qualquer side effect.
 
 ## MCP, Tools e Resources
 
@@ -278,6 +286,8 @@ Checklist rápido:
 ### Cartões e Emergência
 
 - consulta de limite
+- aumento de limite multi-turno com consulta de perfil, politica de elegibilidade, confirmacao explicita e auditoria `LIMIT_CHANGE`
+- bloqueio de aumento quando falta valor, quando o cartao nao esta ativo, quando o novo limite nao aumenta o atual ou quando excede a politica simulada
 - bloqueio de cartão por emergência
 - manutenção de estado do cartão no mock interno
 - emissão de eventos de auditoria para operações críticas

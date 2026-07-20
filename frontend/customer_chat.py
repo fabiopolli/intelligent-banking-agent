@@ -72,6 +72,7 @@ def render_customer_action() -> None:
 
     if result.get("requires_confirmation"):
         pix_details = result.get("pix_details") or {}
+        limit_details = result.get("limit_details") or {}
         detail_lines = ""
         if pix_details:
             amount = pix_details.get("amount")
@@ -83,6 +84,13 @@ def render_customer_action() -> None:
             )
             if destination_key:
                 detail_lines += f"<br>Chave: <code>{destination_key}</code>"
+        if limit_details:
+            current_limit = limit_details.get("current_limit")
+            requested_limit = limit_details.get("requested_limit")
+            if current_limit is not None:
+                detail_lines += f"<br>Limite atual: <strong>R$ {float(current_limit):.2f}</strong>"
+            if requested_limit is not None:
+                detail_lines += f"<br>Novo limite: <strong>R$ {float(requested_limit):.2f}</strong>"
         st.markdown(
             f"""
             <div class="confirm-band">

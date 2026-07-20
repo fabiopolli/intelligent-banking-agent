@@ -18,7 +18,94 @@ class ResponseBuilder:
         return HarnessResponse(
             route="core_banking",
             session_id=session_id,
-            message=f"Seu limite atual e R$ {profile.card_limit:.2f}.",
+            message=(
+                f"Seu limite atual e R$ {profile.card_limit:.2f}. "
+                f"Seu limite disponivel e R$ {profile.available_limit:.2f}."
+            ),
+            limit_details={
+                "current_limit": profile.card_limit,
+                "available_limit": profile.available_limit,
+                "segment": profile.segment,
+                "card_status": profile.card_status,
+            },
+        )
+
+    def limit_needs_details(self, session_id: str, profile: CustomerProfileResponse) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=(
+                "Para avaliar aumento de limite, preciso do novo valor desejado. "
+                f"Seu limite atual e R$ {profile.card_limit:.2f}."
+            ),
+            pending_operation="collect_limit_details",
+            limit_details={
+                "current_limit": profile.card_limit,
+                "available_limit": profile.available_limit,
+                "segment": profile.segment,
+                "card_status": profile.card_status,
+            },
+        )
+
+    def limit_update_checkpoint(
+        self,
+        session_id: str,
+        profile: CustomerProfileResponse,
+        requested_limit: float,
+    ) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=(
+                "Seu perfil foi consultado e o novo limite esta elegivel nesta demo. "
+                "Confira o valor antes de enviar confirmo para concluir."
+            ),
+            requires_confirmation=True,
+            pending_operation="update_card_limit",
+            limit_details={
+                "current_limit": profile.card_limit,
+                "available_limit": profile.available_limit,
+                "requested_limit": requested_limit,
+                "segment": profile.segment,
+                "card_status": profile.card_status,
+                "eligible": True,
+            },
+        )
+
+    def limit_update_blocked(
+        self,
+        session_id: str,
+        profile: CustomerProfileResponse,
+        requested_limit: float,
+        reason: str,
+    ) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=reason,
+            pending_operation="limit_policy_review",
+            limit_details={
+                "current_limit": profile.card_limit,
+                "available_limit": profile.available_limit,
+                "requested_limit": requested_limit,
+                "segment": profile.segment,
+                "card_status": profile.card_status,
+                "eligible": False,
+            },
+        )
+
+    def limit_update_success(self, session_id: str, card_limit: float, available_limit: float) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=(
+                f"Limite atualizado com sucesso para R$ {card_limit:.2f}. "
+                f"Limite disponivel atual: R$ {available_limit:.2f}."
+            ),
+            limit_details={
+                "current_limit": card_limit,
+                "available_limit": available_limit,
+            },
         )
 
     def balance(self, session_id: str, balance: BalanceResponse) -> HarnessResponse:

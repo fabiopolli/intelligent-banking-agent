@@ -14,7 +14,9 @@ from app.security.rbac import RBACService
 from app.services.checkpoint_store import CheckpointStore, checkpoint_store
 from app.services.intent_router import IntentRouter
 from app.services.observability import traceable
-from app.services.orchestrator import DemoOrchestrator, PendingPixOperation
+from app.services.customer_support import CustomerSupportService
+from app.services.mock_bank import mock_bank_service
+from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
 
@@ -47,6 +49,8 @@ class DemoHarness:
         self._guardrails_service.validate_message(payload.message)
         if self._is_confirmation_message(payload.message):
             return self._resume_pending_operation(payload)
+        if self._has_collectable_limit_draft(payload):
+            return self._dispatch("core_banking_limit", payload)
         route = self._classify_intent(payload.message)
         return self._dispatch(route, payload)
 
@@ -84,21 +88,81 @@ class DemoHarness:
                 return self._workflow_graph.checkpoint(payload.session_id, pix_request)
             return self._workflow_graph.invoke(payload, auth, route, pix_request=pix_request)
 
+        if route == "core_banking_limit" and (
+            self._is_limit_increase_request(payload.message)
+            or self._checkpoints.get_limit_draft(payload.session_id) is not None
+        ):
+            return self._handle_limit_increase(payload, auth)
+
         return self._workflow_graph.invoke(payload, auth, route)
 
     def _resume_pending_operation(self, payload: ChatRequest) -> HarnessResponse:
         pending = self._checkpoints.get_pending_pix(payload.session_id)
-        if pending is None:
+        if pending is not None:
+            response = self._workflow_graph.invoke(
+                payload,
+                AuthContext(customer_id=payload.customer_id, role=payload.role),
+                "transaction",
+                pending_operation=pending,
+            )
+            self._checkpoints.consume_pending_pix(payload.session_id)
+            return response
+
+        pending_limit = self._checkpoints.get_pending_limit(payload.session_id)
+        if pending_limit is None:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
 
-        response = self._workflow_graph.invoke(
-            payload,
+        self._rbac_service.validate_owner_access(
             AuthContext(customer_id=payload.customer_id, role=payload.role),
-            "transaction",
-            pending_operation=pending,
+            pending_limit.customer_id,
         )
-        self._checkpoints.consume_pending_pix(payload.session_id)
+        response = self._orchestrator.limit_update_execute(payload.session_id, pending_limit)
+        self._checkpoints.consume_pending_limit(payload.session_id)
         return response
+
+    def _handle_limit_increase(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        profile = CustomerSupportService.require_profile(mock_bank_service.get_customer_profile(payload.customer_id))
+        requested_limit = self._extract_amount(payload.message)
+        if requested_limit is None:
+            self._checkpoints.save_limit_draft(payload.session_id, {"customer_id": payload.customer_id})
+            return self._response_builder.limit_needs_details(payload.session_id, profile)
+        self._checkpoints.consume_limit_draft(payload.session_id)
+        if profile.card_status != "ACTIVE":
+            return self._response_builder.limit_update_blocked(
+                payload.session_id,
+                profile,
+                requested_limit,
+                "Nao posso aumentar limite de um cartao que nao esta ativo.",
+            )
+        if requested_limit <= profile.card_limit:
+            return self._response_builder.limit_update_blocked(
+                payload.session_id,
+                profile,
+                requested_limit,
+                "O novo limite precisa ser maior que o limite atual para seguir com a solicitacao.",
+            )
+        if requested_limit > settings.card_limit_max_eligible:
+            return self._response_builder.limit_update_blocked(
+                payload.session_id,
+                profile,
+                requested_limit,
+                (
+                    f"O valor solicitado excede a politica simulada de elegibilidade de R$ "
+                    f"{settings.card_limit_max_eligible:.2f}."
+                ),
+            )
+        self._checkpoints.save_pending_limit(
+            payload.session_id,
+            PendingLimitOperation(customer_id=payload.customer_id, requested_limit=requested_limit),
+        )
+        return self._response_builder.limit_update_checkpoint(payload.session_id, profile, requested_limit)
+
+    def _has_collectable_limit_draft(self, payload: ChatRequest) -> bool:
+        return (
+            self._checkpoints.get_limit_draft(payload.session_id) is not None
+            and self._extract_amount(payload.message) is not None
+        )
 
     def _build_pix_request(self, payload: ChatRequest) -> PixCreateRequest | None:
         draft = self._merge_pix_draft(payload)
@@ -171,6 +235,8 @@ class DemoHarness:
         raw_amount = match.group(1)
         if "," in raw_amount:
             raw_amount = raw_amount.replace(".", "").replace(",", ".")
+        elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw_amount):
+            raw_amount = raw_amount.replace(".", "")
         return float(raw_amount)
 
     def _extract_destination_key(self, message: str) -> str | None:
@@ -230,6 +296,11 @@ class DemoHarness:
         normalized_message = self._normalize(message)
         suspicious_terms = {"suspeita", "fraude", "golpe", "laranja", "desconhecido"}
         return any(term in normalized_key or term in normalized_message for term in suspicious_terms)
+
+    def _is_limit_increase_request(self, message: str) -> bool:
+        normalized = self._normalize(message)
+        increase_terms = {"aumentar", "aumento", "elevar", "subir", "alterar"}
+        return "limite" in normalized and any(term in normalized for term in increase_terms)
 
     def _is_confirmation_message(self, message: str) -> bool:
         normalized = message.lower().strip()

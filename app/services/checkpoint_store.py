@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from app.config import settings
-from app.services.orchestrator import PendingPixOperation
+from app.services.orchestrator import PendingLimitOperation, PendingPixOperation
 
 
 class CheckpointStore:
@@ -44,6 +44,36 @@ class CheckpointStore:
             destination_key=str(raw_operation["destination_key"]),
         )
 
+    def save_pending_limit(self, session_id: str, operation: PendingLimitOperation) -> None:
+        checkpoints = self._read_all()
+        checkpoints[session_id] = {
+            "type": "pending_limit",
+            "customer_id": operation.customer_id,
+            "requested_limit": operation.requested_limit,
+        }
+        self._write_all(checkpoints)
+
+    def get_pending_limit(self, session_id: str) -> PendingLimitOperation | None:
+        raw_operation = self._read_all().get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pending_limit":
+            return None
+        return PendingLimitOperation(
+            customer_id=str(raw_operation["customer_id"]),
+            requested_limit=float(raw_operation["requested_limit"]),
+        )
+
+    def consume_pending_limit(self, session_id: str) -> PendingLimitOperation | None:
+        checkpoints = self._read_all()
+        raw_operation = checkpoints.get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pending_limit":
+            return None
+        checkpoints.pop(session_id)
+        self._write_all(checkpoints)
+        return PendingLimitOperation(
+            customer_id=str(raw_operation["customer_id"]),
+            requested_limit=float(raw_operation["requested_limit"]),
+        )
+
     def save_pix_draft(self, session_id: str, draft: dict[str, str | float]) -> None:
         checkpoints = self._read_all()
         checkpoints[session_id] = {"type": "pix_draft", **draft}
@@ -70,6 +100,34 @@ class CheckpointStore:
             key: value
             for key, value in raw_operation.items()
             if key in {"amount", "destination_key", "recipient_name"}
+        }
+
+    def save_limit_draft(self, session_id: str, draft: dict[str, str | float]) -> None:
+        checkpoints = self._read_all()
+        checkpoints[session_id] = {"type": "limit_draft", **draft}
+        self._write_all(checkpoints)
+
+    def get_limit_draft(self, session_id: str) -> dict[str, str | float] | None:
+        raw_operation = self._read_all().get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "limit_draft":
+            return None
+        return {
+            key: value
+            for key, value in raw_operation.items()
+            if key in {"customer_id"}
+        }
+
+    def consume_limit_draft(self, session_id: str) -> dict[str, str | float] | None:
+        checkpoints = self._read_all()
+        raw_operation = checkpoints.get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "limit_draft":
+            return None
+        checkpoints.pop(session_id)
+        self._write_all(checkpoints)
+        return {
+            key: value
+            for key, value in raw_operation.items()
+            if key in {"customer_id"}
         }
 
     def reset(self) -> None:
