@@ -15,7 +15,7 @@ PROMPTS = {
     "Tarifas": "Onde consulto tarifas e pacotes de servicos?",
     "Saldo": "Qual meu saldo?",
     "Limite": "Qual meu limite?",
-    "PIX": "Quero fazer um PIX de 7000 para a minha chave",
+    "PIX": "Quero fazer um PIX de 7000 para chave pix maria@example.com",
     "Emergencia": "Fui roubado",
 }
 

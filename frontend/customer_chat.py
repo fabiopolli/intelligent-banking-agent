@@ -71,11 +71,24 @@ def render_customer_action() -> None:
         return
 
     if result.get("requires_confirmation"):
+        pix_details = result.get("pix_details") or {}
+        detail_lines = ""
+        if pix_details:
+            amount = pix_details.get("amount")
+            destination_key = pix_details.get("destination_key")
+            detail_lines = (
+                f"<br>Valor: <strong>R$ {float(amount):.2f}</strong>"
+                if amount is not None
+                else ""
+            )
+            if destination_key:
+                detail_lines += f"<br>Chave: <code>{destination_key}</code>"
         st.markdown(
-            """
+            f"""
             <div class="confirm-band">
                 <strong>Confirmacao necessaria</strong><br>
-                Esta operacao sensivel foi pausada. Para esta demo, envie <code>confirmo</code>
+                Esta operacao sensivel foi pausada.{detail_lines}<br>
+                Para esta demo, envie <code>confirmo</code>
                 para simular uma autenticacao adicional no app.
             </div>
             """,

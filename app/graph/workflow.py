@@ -42,8 +42,8 @@ class DemoWorkflowGraph:
             raise ValueError("Workflow graph did not produce a response.")
         return response
 
-    def checkpoint(self, session_id: str) -> HarnessResponse:
-        return self._orchestrator.transaction_checkpoint(session_id)
+    def checkpoint(self, session_id: str, pix_request: PixCreateRequest | None = None) -> HarnessResponse:
+        return self._orchestrator.transaction_checkpoint(session_id, pix_request)
 
     def _build_state(
         self,

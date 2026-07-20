@@ -10,6 +10,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - mocks internos stateful
 - harness com RBAC e guardrails
 - fluxo de PIX com HITL para alto valor
+- coleta multi-turno de valor e chave Pix antes de executar ou pausar a transacao
 - checkpoints HITL persistidos localmente para retomada de operacoes pendentes
 - fluxo de emergência com bloqueio de cartão
 - frontend Streamlit inicial para validação local
@@ -104,6 +105,7 @@ Resultado validado em 18 de julho de 2026:
 - `27 passed, 2 warnings`
 - `29 passed, 2 warnings` apos MCP real, Docker Model Runner provider e correcao visual Streamlit
 - `30 passed, 2 warnings` apos smoke MCP Streamable HTTP com cliente MCP real e reforco visual dark-mode dos Streamlits
+- `32 passed, 2 warnings` apos coleta multi-turno de valor/chave Pix e confirmacao visual com valor/chave no Streamlit
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -186,7 +188,7 @@ Para rodar o servidor MCP real fora do Compose:
 .\.venv\Scripts\python -m app.mcp.server
 ```
 
-O endpoint `http://localhost:8600/mcp` usa MCP Streamable HTTP. Um `GET` simples no navegador ou em `curl` pode retornar `406 Not Acceptable`, porque o servidor espera o protocolo MCP e headers de negociação do cliente, não uma rota REST comum. Para validar o servidor, use um cliente MCP:
+O endpoint `http://localhost:8600/mcp` usa MCP Streamable HTTP. Um `GET` simples no navegador ou em `curl` pode retornar `406 Not Acceptable`, porque o servidor espera o protocolo MCP e headers de negociação do cliente, não uma rota REST comum. No Windows, prefira `127.0.0.1` no smoke para evitar ambiguidade de resolução de `localhost`. Para validar o servidor, use um cliente MCP:
 
 ```powershell
 .\.venv\Scripts\python scripts\smoke_mcp_client.py --url http://127.0.0.1:8600/mcp
@@ -262,8 +264,11 @@ Checklist rápido:
 ### PIX
 
 - identifica fluxo de PIX
+- coleta valor e chave Pix de destino antes de executar
+- permite completar dados faltantes em turnos seguintes da mesma sessao
 - executa `PIX` abaixo do threshold diretamente
 - exige confirmação para `PIX` de alto valor
+- mostra valor e chave Pix na faixa de confirmação do chat antes de o cliente enviar `confirmo`
 - rejeita `PIX` sem saldo suficiente, inclusive apos confirmação HITL
 - persiste checkpoint local em `.runtime/checkpoints.json` até a confirmação
 - atualiza saldo stateful após execução

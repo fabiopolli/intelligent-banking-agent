@@ -73,12 +73,15 @@ class TransactionNode:
         self._response_builder = response_builder
         self._rbac_service = rbac_service
 
-    def create_checkpoint(self, session_id: str) -> HarnessResponse:
-        return self._create_checkpoint(session_id)
+    def create_checkpoint(self, session_id: str, pix_request: PixCreateRequest | None = None) -> HarnessResponse:
+        return self._create_checkpoint(session_id, pix_request)
 
     @traceable(name="HITL Checkpoint", run_type="tool")
-    def _create_checkpoint(self, session_id: str) -> HarnessResponse:
-        return self._response_builder.transaction_checkpoint(session_id)
+    def _create_checkpoint(self, session_id: str, pix_request: PixCreateRequest | None = None) -> HarnessResponse:
+        return self._response_builder.transaction_checkpoint(
+            session_id,
+            _pix_details(pix_request) if pix_request is not None else None,
+        )
 
     def execute_pix(self, session_id: str, pix_request: PixCreateRequest) -> HarnessResponse:
         return self._execute_pix(session_id, pix_request)
@@ -86,7 +89,11 @@ class TransactionNode:
     @traceable(name="PIX Tool", run_type="tool")
     def _execute_pix(self, session_id: str, pix_request: PixCreateRequest) -> HarnessResponse:
         result = mock_bank_service.create_pix(pix_request)
-        return self._response_builder.transaction_success(session_id, float(result["balance"]))
+        return self._response_builder.transaction_success(
+            session_id,
+            float(result["balance"]),
+            _pix_details(pix_request),
+        )
 
     def resume_pix(
         self,
@@ -149,8 +156,8 @@ class DemoOrchestrator:
     def core_banking_balance(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         return self._core_banking.handle_balance(payload, auth)
 
-    def transaction_checkpoint(self, session_id: str) -> HarnessResponse:
-        return self._transaction.create_checkpoint(session_id)
+    def transaction_checkpoint(self, session_id: str, pix_request: PixCreateRequest | None = None) -> HarnessResponse:
+        return self._transaction.create_checkpoint(session_id, pix_request)
 
     def transaction_execute(self, session_id: str, pix_request: PixCreateRequest) -> HarnessResponse:
         return self._transaction.execute_pix(session_id, pix_request)
@@ -165,3 +172,12 @@ class DemoOrchestrator:
 
     def faq_fast_path(self, payload: ChatRequest) -> HarnessResponse:
         return self._faq.handle(payload)
+
+
+def _pix_details(pix_request: PixCreateRequest | None) -> dict:
+    if pix_request is None:
+        return {}
+    return {
+        "amount": pix_request.amount,
+        "destination_key": pix_request.destination_key,
+    }

@@ -28,22 +28,45 @@ class ResponseBuilder:
             message=f"Seu saldo atual e R$ {balance.balance:.2f}.",
         )
 
-    def transaction_checkpoint(self, session_id: str) -> HarnessResponse:
+    def transaction_needs_details(
+        self,
+        session_id: str,
+        missing_fields: list[str],
+        pix_details: dict,
+    ) -> HarnessResponse:
+        readable_missing = " e ".join(missing_fields)
         return HarnessResponse(
             route="transaction",
             session_id=session_id,
-            message="Fluxo de PIX identificado. Confirmacao formal sera necessaria antes da execucao.",
+            message=(
+                "Para seguir com o PIX, preciso confirmar "
+                f"{readable_missing}. Envie os dados restantes nesta conversa."
+            ),
+            pending_operation="collect_pix_details",
+            pix_details=pix_details,
+        )
+
+    def transaction_checkpoint(self, session_id: str, pix_details: dict | None = None) -> HarnessResponse:
+        return HarnessResponse(
+            route="transaction",
+            session_id=session_id,
+            message=(
+                "Fluxo de PIX identificado. Confirmacao formal sera necessaria antes da execucao. "
+                "Confira valor e chave antes de enviar confirmo."
+            ),
             hitl_threshold=settings.hitl_pix_threshold,
             requires_confirmation=True,
             pending_operation="create_pix",
+            pix_details=pix_details or {},
         )
 
-    def transaction_success(self, session_id: str, balance: float) -> HarnessResponse:
+    def transaction_success(self, session_id: str, balance: float, pix_details: dict | None = None) -> HarnessResponse:
         return HarnessResponse(
             route="transaction",
             session_id=session_id,
             message=f"PIX realizado com sucesso. Seu saldo atualizado e R$ {balance:.2f}.",
             balance=balance,
+            pix_details=pix_details or {},
         )
 
     def faq_fast_path(self, session_id: str) -> HarnessResponse:

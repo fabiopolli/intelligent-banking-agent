@@ -14,6 +14,7 @@ class CheckpointStore:
     def save_pending_pix(self, session_id: str, operation: PendingPixOperation) -> None:
         checkpoints = self._read_all()
         checkpoints[session_id] = {
+            "type": "pending_pix",
             "customer_id": operation.customer_id,
             "amount": operation.amount,
             "destination_key": operation.destination_key,
@@ -22,7 +23,7 @@ class CheckpointStore:
 
     def get_pending_pix(self, session_id: str) -> PendingPixOperation | None:
         raw_operation = self._read_all().get(session_id)
-        if raw_operation is None:
+        if raw_operation is None or raw_operation.get("type") != "pending_pix":
             return None
         return PendingPixOperation(
             customer_id=str(raw_operation["customer_id"]),
@@ -32,15 +33,44 @@ class CheckpointStore:
 
     def consume_pending_pix(self, session_id: str) -> PendingPixOperation | None:
         checkpoints = self._read_all()
-        raw_operation = checkpoints.pop(session_id, None)
-        if raw_operation is None:
+        raw_operation = checkpoints.get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pending_pix":
             return None
+        checkpoints.pop(session_id)
         self._write_all(checkpoints)
         return PendingPixOperation(
             customer_id=str(raw_operation["customer_id"]),
             amount=float(raw_operation["amount"]),
             destination_key=str(raw_operation["destination_key"]),
         )
+
+    def save_pix_draft(self, session_id: str, draft: dict[str, str | float]) -> None:
+        checkpoints = self._read_all()
+        checkpoints[session_id] = {"type": "pix_draft", **draft}
+        self._write_all(checkpoints)
+
+    def get_pix_draft(self, session_id: str) -> dict[str, str | float] | None:
+        raw_operation = self._read_all().get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pix_draft":
+            return None
+        return {
+            key: value
+            for key, value in raw_operation.items()
+            if key in {"amount", "destination_key", "recipient_name"}
+        }
+
+    def consume_pix_draft(self, session_id: str) -> dict[str, str | float] | None:
+        checkpoints = self._read_all()
+        raw_operation = checkpoints.get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pix_draft":
+            return None
+        checkpoints.pop(session_id)
+        self._write_all(checkpoints)
+        return {
+            key: value
+            for key, value in raw_operation.items()
+            if key in {"amount", "destination_key", "recipient_name"}
+        }
 
     def reset(self) -> None:
         if self._storage_path.exists():

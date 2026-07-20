@@ -108,7 +108,7 @@ def test_pix_requires_confirmation_and_updates_balance_after_resume() -> None:
         json={
             "session_id": "sess-3",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 7000 para a minha chave",
+            "message": "Quero fazer um pix de 7000 para chave pix maria@example.com",
         },
     )
     assert checkpoint_response.status_code == 200
@@ -116,6 +116,7 @@ def test_pix_requires_confirmation_and_updates_balance_after_resume() -> None:
     assert checkpoint_body["route"] == "transaction"
     assert checkpoint_body["requires_confirmation"] is True
     assert checkpoint_body["pending_operation"] == "create_pix"
+    assert checkpoint_body["pix_details"]["destination_key"] == "maria@example.com"
 
     resume_response = client.post(
         "/v1/channels/app/chat",
@@ -137,7 +138,7 @@ def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation
         json={
             "session_id": "sess-insufficient-balance",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 70000 para a minha chave",
+            "message": "Quero fazer um pix de 70000 para chave pix maria@example.com",
         },
     )
     assert checkpoint_response.status_code == 200
@@ -181,7 +182,7 @@ def test_low_value_pix_executes_without_confirmation() -> None:
         json={
             "session_id": "sess-5",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 100 para a minha chave",
+            "message": "Quero fazer um pix de 100 para chave pix maria@example.com",
         },
     )
     assert response.status_code == 200
@@ -189,6 +190,74 @@ def test_low_value_pix_executes_without_confirmation() -> None:
     assert body["route"] == "transaction"
     assert body["requires_confirmation"] is False
     assert body["balance"] == 24900.0
+    assert body["pix_details"]["destination_key"] == "maria@example.com"
+
+
+def test_pix_collects_missing_destination_before_execution() -> None:
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-collect-destination",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 250",
+        },
+    )
+
+    assert first_response.status_code == 200
+    first_body = first_response.json()
+    assert first_body["route"] == "transaction"
+    assert first_body["requires_confirmation"] is False
+    assert first_body["pending_operation"] == "collect_pix_details"
+    assert "chave pix" in first_body["message"].lower()
+    assert first_body["pix_details"]["amount"] == 250.0
+
+    second_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-collect-destination",
+            "customer_id": "123",
+            "message": "A chave pix e maria@example.com",
+        },
+    )
+
+    assert second_response.status_code == 200
+    second_body = second_response.json()
+    assert second_body["route"] == "transaction"
+    assert second_body["requires_confirmation"] is False
+    assert second_body["balance"] == 24750.0
+    assert second_body["pix_details"]["destination_key"] == "maria@example.com"
+
+
+def test_high_value_pix_collects_data_before_hitl_checkpoint() -> None:
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-collect-high-value",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 7000",
+        },
+    )
+
+    assert first_response.status_code == 200
+    first_body = first_response.json()
+    assert first_body["pending_operation"] == "collect_pix_details"
+    assert first_body["requires_confirmation"] is False
+
+    second_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-collect-high-value",
+            "customer_id": "123",
+            "message": "Chave pix maria@example.com",
+        },
+    )
+
+    assert second_response.status_code == 200
+    second_body = second_response.json()
+    assert second_body["pending_operation"] == "create_pix"
+    assert second_body["requires_confirmation"] is True
+    assert second_body["pix_details"]["amount"] == 7000.0
+    assert second_body["pix_details"]["destination_key"] == "maria@example.com"
 
 
 def test_documental_tariff_question_returns_grounded_source() -> None:
@@ -478,7 +547,7 @@ def test_confirmation_cannot_be_reused_after_pending_operation_is_consumed() -> 
         json={
             "session_id": "sess-6",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 7000 para a minha chave",
+            "message": "Quero fazer um pix de 7000 para chave pix maria@example.com",
         },
     )
 
@@ -509,7 +578,7 @@ def test_pending_pix_checkpoint_survives_harness_recreation() -> None:
         ChatRequest(
             session_id="sess-persisted",
             customer_id="123",
-            message="Quero fazer um pix de 7000 para a minha chave",
+            message="Quero fazer um pix de 7000 para chave pix maria@example.com",
         )
     )
     assert checkpoint["requires_confirmation"] is True
@@ -547,7 +616,7 @@ def test_pix_emits_append_only_audit_event() -> None:
         json={
             "session_id": "sess-7",
             "customer_id": "123",
-            "message": "Quero fazer um pix de 100 para a minha chave",
+            "message": "Quero fazer um pix de 100 para chave pix maria@example.com",
         },
     )
     assert response.status_code == 200
@@ -557,6 +626,7 @@ def test_pix_emits_append_only_audit_event() -> None:
     audit_body = audit_response.json()
     assert audit_body[-1]["event_type"] == "PIX"
     assert audit_body[-1]["payload"]["amount"] == 100.0
+    assert audit_body[-1]["payload"]["destination_key"] == "maria@example.com"
     assert audit_body[-1]["user"] == "123"
     assert audit_body[-1]["action"] == "PIX"
     assert audit_body[-1]["amount"] == 100.0
