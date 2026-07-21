@@ -16,6 +16,8 @@ def test_tariff_schema_preserves_pages_rules_packages_and_safe_publication() -> 
 
     sql = "\n".join(cursor.statements)
     for table in (
+        "knowledge_facts",
+        "fact_evidence",
         "knowledge_sections",
         "knowledge_pages",
         "tariff_entries",
@@ -29,3 +31,4 @@ def test_tariff_schema_preserves_pages_rules_packages_and_safe_publication() -> 
     assert "foreign key (source_id, page_number)" in sql
     assert "tariff_entries_lookup_idx" in sql
     assert "tariff_entries_dimensions_idx" in sql
+    assert "knowledge_facts_search_idx" in sql

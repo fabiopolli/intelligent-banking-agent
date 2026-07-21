@@ -42,11 +42,11 @@ class PostgresKnowledgeStore:
                 )
                 cursor.execute(
                     """
-                    INSERT INTO knowledge_documents (
-                        knowledge_id, title, source, content, product, topic, audience,
+                    INSERT INTO knowledge_facts (
+                        fact_id, title, source, content, product, topic, audience,
                         version, status, reviewed_at, limitations, embedding
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::vector)
-                    ON CONFLICT (knowledge_id) DO UPDATE SET
+                    ON CONFLICT (fact_id) DO UPDATE SET
                         title = EXCLUDED.title, source = EXCLUDED.source, content = EXCLUDED.content,
                         product = EXCLUDED.product, topic = EXCLUDED.topic, audience = EXCLUDED.audience,
                         version = EXCLUDED.version, status = EXCLUDED.status,
@@ -54,6 +54,24 @@ class PostgresKnowledgeStore:
                         embedding = EXCLUDED.embedding, updated_at = CURRENT_TIMESTAMP
                     """,
                     (*self._document_values(document), self._vector_literal(self._embedding.embed(document.text))),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO fact_evidence (
+                        fact_id, source_id, locator, evidence_text, content_hash
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (fact_id, source_id, locator) DO UPDATE SET
+                        evidence_text = EXCLUDED.evidence_text,
+                        content_hash = EXCLUDED.content_hash,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (
+                        document.knowledge_id,
+                        source_id,
+                        self._evidence_locator(document.text),
+                        document.text,
+                        hashlib.sha256(document.text.encode("utf-8")).hexdigest(),
+                    ),
                 )
             chunks = source_chunks or []
             source_hashes = {
@@ -108,9 +126,9 @@ class PostgresKnowledgeStore:
             self._ensure_schema(cursor)
             cursor.execute(
                 """
-                SELECT knowledge_id, title, source, content, product, topic, audience,
+                SELECT fact_id, title, source, content, product, topic, audience,
                        version, status, reviewed_at::text, limitations
-                FROM knowledge_documents WHERE status = 'published' ORDER BY knowledge_id
+                FROM knowledge_facts WHERE status = 'published' ORDER BY fact_id
                 """
             )
             curated = [self._row_to_document(row) for row in cursor.fetchall()]
@@ -134,7 +152,7 @@ class PostgresKnowledgeStore:
                 """
                 WITH searchable AS (
                     SELECT title, source, content, search_vector, embedding
-                    FROM knowledge_documents WHERE status = 'published'
+                    FROM knowledge_facts WHERE status = 'published'
                     UNION ALL
                     SELECT c.title, s.source, c.content, c.search_vector, c.embedding
                     FROM knowledge_chunks c
@@ -193,6 +211,43 @@ class PostgresKnowledgeStore:
                 status TEXT NOT NULL,
                 content_hash TEXT NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS knowledge_facts (
+                fact_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                source TEXT NOT NULL,
+                content TEXT NOT NULL,
+                product TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                audience TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                reviewed_at DATE NOT NULL,
+                limitations TEXT NOT NULL DEFAULT '',
+                embedding vector({self._dimensions}) NOT NULL,
+                search_vector tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS knowledge_facts_search_idx "
+            "ON knowledge_facts USING GIN (search_vector)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fact_evidence (
+                fact_id TEXT NOT NULL REFERENCES knowledge_facts(fact_id) ON DELETE CASCADE,
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                locator TEXT NOT NULL,
+                evidence_text TEXT NOT NULL,
+                content_hash TEXT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (fact_id, source_id, locator)
             )
             """
         )
@@ -377,3 +432,7 @@ class PostgresKnowledgeStore:
     def _page_number(self, title: str) -> int | None:
         match = re.search(r"pagina (\d+)", title, flags=re.IGNORECASE)
         return int(match.group(1)) if match else None
+
+    def _evidence_locator(self, text: str) -> str:
+        match = re.search(r"pagina\s+(\d+)", text, flags=re.IGNORECASE)
+        return f"page:{match.group(1)}" if match else "curated-snapshot"
