@@ -214,6 +214,137 @@ class PostgresKnowledgeStore:
             "CREATE INDEX IF NOT EXISTS knowledge_chunks_search_idx "
             "ON knowledge_chunks USING GIN (search_vector)"
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_sections (
+                section_id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                code TEXT NOT NULL,
+                name TEXT NOT NULL,
+                sort_order INTEGER NOT NULL,
+                page_start INTEGER NOT NULL CHECK (page_start > 0),
+                page_end INTEGER NOT NULL CHECK (page_end >= page_start),
+                UNIQUE (source_id, code)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS knowledge_pages (
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                page_number INTEGER NOT NULL CHECK (page_number > 0),
+                section_id TEXT REFERENCES knowledge_sections(section_id),
+                content_hash TEXT NOT NULL,
+                extracted_text TEXT NOT NULL DEFAULT '',
+                review_status TEXT NOT NULL DEFAULT 'pending',
+                reviewed_at DATE,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (source_id, page_number)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tariff_entries (
+                tariff_id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                section_id TEXT NOT NULL REFERENCES knowledge_sections(section_id),
+                page_number INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                service_code TEXT NOT NULL DEFAULT '',
+                service_name TEXT NOT NULL,
+                delivery_channel TEXT NOT NULL DEFAULT '',
+                statement_code TEXT NOT NULL DEFAULT '',
+                value_type TEXT NOT NULL,
+                amount NUMERIC(16, 4),
+                minimum_amount NUMERIC(16, 4),
+                maximum_amount NUMERIC(16, 4),
+                percentage_min NUMERIC(10, 6),
+                percentage_max NUMERIC(10, 6),
+                currency CHAR(3) NOT NULL DEFAULT 'BRL',
+                billing_unit TEXT NOT NULL DEFAULT '',
+                charging_event TEXT NOT NULL DEFAULT '',
+                dimensions JSONB NOT NULL DEFAULT '{}'::jsonb,
+                effective_from DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'review_required',
+                confidence NUMERIC(5, 4),
+                reviewed_at DATE,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (source_id, page_number)
+                    REFERENCES knowledge_pages(source_id, page_number),
+                CHECK (status <> 'published' OR reviewed_at IS NOT NULL)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS tariff_entries_lookup_idx "
+            "ON tariff_entries (status, category, service_name, delivery_channel, effective_from DESC)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS tariff_entries_dimensions_idx "
+            "ON tariff_entries USING GIN (dimensions)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tariff_rules (
+                rule_id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                page_number INTEGER NOT NULL,
+                rule_code TEXT NOT NULL,
+                text TEXT NOT NULL,
+                effective_from DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'review_required',
+                reviewed_at DATE,
+                UNIQUE (source_id, rule_code, effective_from),
+                FOREIGN KEY (source_id, page_number)
+                    REFERENCES knowledge_pages(source_id, page_number),
+                CHECK (status <> 'published' OR reviewed_at IS NOT NULL)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tariff_entry_rules (
+                tariff_id TEXT NOT NULL REFERENCES tariff_entries(tariff_id) ON DELETE CASCADE,
+                rule_id TEXT NOT NULL REFERENCES tariff_rules(rule_id),
+                PRIMARY KEY (tariff_id, rule_id)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS service_packages (
+                package_id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                section_id TEXT NOT NULL REFERENCES knowledge_sections(section_id),
+                page_number INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                audience TEXT NOT NULL DEFAULT 'pessoa_fisica',
+                monthly_fee NUMERIC(16, 4),
+                total_services_value NUMERIC(16, 4),
+                dimensions JSONB NOT NULL DEFAULT '{}'::jsonb,
+                effective_from DATE NOT NULL,
+                status TEXT NOT NULL DEFAULT 'review_required',
+                reviewed_at DATE,
+                FOREIGN KEY (source_id, page_number)
+                    REFERENCES knowledge_pages(source_id, page_number),
+                CHECK (status <> 'published' OR reviewed_at IS NOT NULL)
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS package_items (
+                package_id TEXT NOT NULL REFERENCES service_packages(package_id) ON DELETE CASCADE,
+                item_id TEXT NOT NULL,
+                service_name TEXT NOT NULL,
+                included_quantity NUMERIC(12, 2),
+                item_value NUMERIC(16, 4),
+                conditions JSONB NOT NULL DEFAULT '{}'::jsonb,
+                PRIMARY KEY (package_id, item_id)
+            )
+            """
+        )
 
     def _document_values(self, document: KnowledgeDocument) -> tuple:
         return (
