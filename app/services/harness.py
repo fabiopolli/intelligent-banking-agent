@@ -301,6 +301,13 @@ class DemoHarness:
                 requested_limit,
                 "Nao posso aumentar limite de um cartao que nao esta ativo.",
             )
+        if profile.credit_score < settings.card_limit_min_credit_score:
+            return self._response_builder.limit_update_blocked(
+                payload.session_id,
+                profile,
+                requested_limit,
+                "No momento, nao ha uma oferta de aumento de limite disponivel para este perfil.",
+            )
         if requested_limit <= profile.card_limit:
             return self._response_builder.limit_update_blocked(
                 payload.session_id,

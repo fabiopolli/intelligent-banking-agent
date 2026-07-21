@@ -89,6 +89,7 @@ def get_card_limit(
         "card_limit": profile["card_limit"],
         "available_limit": profile["available_limit"],
         "card_status": profile["card_status"],
+        "credit_score": profile["credit_score"],
     }
 
 

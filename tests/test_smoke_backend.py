@@ -103,6 +103,7 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
                 card_status="ACTIVE",
                 card_limit=1000,
                 available_limit=1000,
+                credit_score=820,
             )
 
         def get_account_balance(self, customer_id: str):  # noqa: ANN201
@@ -130,6 +131,7 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
                 card_status="ACTIVE",
                 card_limit=1000,
                 available_limit=1000,
+                credit_score=820,
             )
 
         def search_official_knowledge(self, query: str) -> dict:
@@ -240,6 +242,7 @@ def test_critical_writes_use_mcp_gateway_only_after_hitl() -> None:
                 card_status="ACTIVE",
                 card_limit=5000,
                 available_limit=5000,
+                credit_score=820,
             )
 
         def update_card_limit(self, payload):  # noqa: ANN001, ANN201
@@ -434,6 +437,18 @@ def test_internal_mcp_endpoints_require_tool_key() -> None:
     assert "Internal tool API key" in response.json()["detail"]
 
 
+def test_fake_profile_matches_mcp_challenge_contract() -> None:
+    fabio = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
+    gerardo = client.get("/v1/mcp/users/profile/456", headers=INTERNAL_TOOL_HEADERS)
+
+    assert fabio.status_code == 200
+    assert fabio.json()["name"] == "Fabio de Melo"
+    assert fabio.json()["credit_score"] == 820
+    assert gerardo.status_code == 200
+    assert gerardo.json()["name"] == "Gerardo da Silva"
+    assert gerardo.json()["credit_score"] == 740
+
+
 def test_mcp_tool_registry_exposes_banking_tools_and_resources() -> None:
     tools_response = client.get("/v1/mcp/tools", headers=INTERNAL_TOOL_HEADERS)
     resources_response = client.get("/v1/mcp/resources", headers=INTERNAL_TOOL_HEADERS)
@@ -600,6 +615,29 @@ def test_limit_increase_above_policy_is_blocked_before_confirmation() -> None:
     assert body["requires_confirmation"] is False
     assert body["pending_operation"] == "limit_policy_review"
     assert body["limit_details"]["eligible"] is False
+
+
+def test_limit_increase_below_credit_policy_is_blocked_before_hitl(monkeypatch) -> None:  # noqa: ANN001
+    mock_bank_service.reset()
+    monkeypatch.setattr(settings, "card_limit_min_credit_score", 900)
+
+    response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-limit-credit-policy",
+            "customer_id": "123",
+            "message": "Quero aumentar o limite do meu cartao para R$ 15.000",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] == "limit_policy_review"
+    assert body["limit_details"]["eligible"] is False
+    assert body["limit_details"]["credit_score"] == 820
+    assert "credit score" not in body["message"].lower()
+    assert mock_bank_service.get_customer_profile("123").card_limit == 10000.0
 
 
 def test_empty_message_is_rejected() -> None:

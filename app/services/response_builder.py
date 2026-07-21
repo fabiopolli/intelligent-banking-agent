@@ -55,6 +55,7 @@ class ResponseBuilder:
                 "available_limit": profile.available_limit,
                 "segment": profile.segment,
                 "card_status": profile.card_status,
+                "credit_score": profile.credit_score,
             },
         )
 
@@ -72,6 +73,7 @@ class ResponseBuilder:
                 "available_limit": profile.available_limit,
                 "segment": profile.segment,
                 "card_status": profile.card_status,
+                "credit_score": profile.credit_score,
             },
         )
 
@@ -97,6 +99,7 @@ class ResponseBuilder:
                 "segment": profile.segment,
                 "card_status": profile.card_status,
                 "eligible": True,
+                "credit_score": profile.credit_score,
             },
         )
 
@@ -119,6 +122,7 @@ class ResponseBuilder:
                 "segment": profile.segment,
                 "card_status": profile.card_status,
                 "eligible": False,
+                "credit_score": profile.credit_score,
             },
         )
 

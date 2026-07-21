@@ -150,6 +150,10 @@ administrador possui leitura e operações. Expressões explícitas como `client
 código nativo antes do planner; o Harness aplica RBAC antes de dados e tools. Em produção, esse
 registro local deve ser substituído por OIDC/OAuth2 Authorization Code com PKCE e JWT validado no servidor.
 
+As massas bancárias são `123` (`Fabio de Melo`, score 820, Personnalité) e `456`
+(`Gerardo da Silva`, score 740, Uniclass). O score vem do perfil interno/MCP e participa somente da
+política determinística de elegibilidade; não é decidido pela LLM nem informado ao cliente.
+
 O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e versionado no repositorio e copiado para a imagem Docker. A imagem do desafio em `.docs/desafio.png` permanece fora do Git.
 
 ### Knowledge Base Curada

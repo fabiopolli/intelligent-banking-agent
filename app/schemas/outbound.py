@@ -8,6 +8,7 @@ class CustomerProfileResponse(BaseModel):
     card_status: str
     card_limit: float
     available_limit: float
+    credit_score: int = Field(ge=0, le=1000)
 
 
 class BalanceResponse(BaseModel):

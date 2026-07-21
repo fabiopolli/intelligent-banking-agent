@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     hitl_pix_threshold: float = Field(default=5000.0, ge=0)
     pix_daily_limit: float = Field(default=50000.0, ge=0)
     card_limit_max_eligible: float = Field(default=20000.0, ge=0)
+    card_limit_min_credit_score: int = Field(default=650, ge=0, le=1000)
     default_user_role: str = "customer"
     checkpoint_store_path: str = ".runtime/checkpoints.json"
     llm_grounded_faq_enabled: bool = False

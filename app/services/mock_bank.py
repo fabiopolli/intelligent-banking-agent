@@ -22,6 +22,7 @@ class CustomerState:
     card_limit: float
     available_limit: float
     balance: float
+    credit_score: int
     history: list[dict] = field(default_factory=list)
 
 
@@ -30,21 +31,23 @@ class MockBankService:
         self._baseline = {
             "123": CustomerState(
                 customer_id="123",
-                name="Fabio Polli",
+                name="Fabio de Melo",
                 segment="Personnalite",
                 card_status="ACTIVE",
                 card_limit=10000.0,
                 available_limit=10000.0,
                 balance=25000.0,
+                credit_score=820,
             ),
             "456": CustomerState(
                 customer_id="456",
-                name="Cliente Demo",
+                name="Gerardo da Silva",
                 segment="Uniclass",
                 card_status="ACTIVE",
                 card_limit=5000.0,
                 available_limit=5000.0,
                 balance=8000.0,
+                credit_score=740,
             ),
         }
         self._customers = deepcopy(self._baseline)
@@ -63,6 +66,7 @@ class MockBankService:
             card_status=customer.card_status,
             card_limit=customer.card_limit,
             available_limit=customer.available_limit,
+            credit_score=customer.credit_score,
         )
 
     def get_balance(self, customer_id: str) -> BalanceResponse | None:
