@@ -19,6 +19,12 @@ class TariffAnswerBuilder:
         tariff_context = self._extract_tariff_context(normalized_query)
         subject = self._extract_subject(normalized_query)
 
+        if self._has_blocked_conflict(normalized_query):
+            return (
+                "O PDF oficial traz valores divergentes para esse serviço. Por segurança, não vou informar "
+                "um valor até a fonte ser corrigida pelo Itaú."
+            )
+
         structured = self._find_structured_entries(normalized_query)
         if structured:
             return self._format_structured_answer(structured, normalized_query)
@@ -49,6 +55,14 @@ class TariffAnswerBuilder:
 
     def _find_structured_entries(self, normalized_query: str) -> list[dict]:
         intents = {
+            "cartao_pre_pago": ("cartao pre pago", "pre pago"),
+            "credito_imobiliario": ("credito imobiliario", "fgts", "imovel comercial", "sbpe"),
+            "financiamento": ("financiamento", "leasing", "veiculo"),
+            "consorcio": ("consorcio", "cota cedida"),
+            "previdencia": ("previdencia",),
+            "seguros": ("seguro de vida", "sobrevivencia"),
+            "servicos_financeiros": ("escrow",),
+            "conta_pagamento": ("conta de pagamento", "conta 100 digital"),
             "saque": ("saque", "retirada"),
             "ted": ("ted",),
             "extratos": ("extrato", "extratos"),
@@ -56,7 +70,10 @@ class TariffAnswerBuilder:
             "depositos": ("deposito", "depositos"),
             "cadastro": ("cadastro",),
             "cartoes": ("cartao", "cartoes", "anuidade"),
-            "investimentos": ("fundo", "fundos", "investimento", "investimentos"),
+            "investimentos": (
+                "fundo", "fundos", "investimento", "investimentos", "custodia", "corretagem",
+                "tesouro", "cripto", "b3",
+            ),
             "ordem_pagamento": ("ordem de pagamento",),
             "transferencias": ("transferencia", "transferencias"),
             "cobranca": ("cobranca", "cobrancas", "boleto", "titulo", "protesto", "negativacao"),
@@ -82,7 +99,11 @@ class TariffAnswerBuilder:
         else:
             entries = [entry for entry in entries if entry["category"] == selected_intent]
 
-        if selected_intent in {"cobranca", "credito", "cambio", "cheques", "cartoes"}:
+        if selected_intent in {
+            "cobranca", "credito", "cambio", "cheques", "cartoes", "cartao_pre_pago",
+            "credito_imobiliario", "financiamento", "consorcio", "previdencia", "seguros",
+            "servicos_financeiros", "conta_pagamento", "investimentos",
+        }:
             query_stems = self._specific_stems(normalized_query, selected_intent)
             scores = [self._specificity_score(entry, query_stems) for entry in entries]
             if scores and max(scores) > 0:
@@ -123,7 +144,16 @@ class TariffAnswerBuilder:
             (entry.get("service_name", ""), entry.get("statement_code", ""), entry.get("charging_event", ""))
         )
         entry_stems = {token[:5] for token in tokenize(searchable) if len(token) >= 3}
-        return len(query_stems & entry_stems)
+        service_stems = {token[:5] for token in tokenize(entry.get("service_name", "")) if len(token) >= 3}
+        return 10 * len(query_stems & entry_stems) - len(service_stems - query_stems)
+
+    def _has_blocked_conflict(self, normalized_query: str) -> bool:
+        blocked = [entry for entry in self._entries if entry.get("status") == "review_required"]
+        published = [entry for entry in self._entries if entry.get("status") == "published"]
+        query_stems = self._specific_stems(normalized_query, "")
+        blocked_score = max((self._specificity_score(entry, query_stems) for entry in blocked), default=0)
+        published_score = max((self._specificity_score(entry, query_stems) for entry in published), default=0)
+        return blocked_score >= 10 and blocked_score > published_score
 
     def _format_structured_answer(self, entries: list[dict], normalized_query: str) -> str:
         descriptions = []
@@ -136,8 +166,21 @@ class TariffAnswerBuilder:
                 value = f"de {self._format_percent(entry['percentage_min'])} a {self._format_percent(entry['percentage_max'])}"
             elif entry["value_type"] == "percentage_maximum":
                 value = f"até {self._format_percent(entry['percentage_max'])}"
+            elif entry["value_type"] == "percentage_fixed":
+                value = self._format_percent(entry["percentage_max"])
             elif entry["value_type"] == "amount_range":
                 value = f"de {self._format_brl(entry['minimum_amount'])} a {self._format_brl(entry['maximum_amount'])}"
+            elif entry["value_type"] == "exempt":
+                value = "isento"
+            elif entry["value_type"] == "negotiated":
+                value = "conforme negociação"
+            elif entry["value_type"] == "greater_of":
+                value = (
+                    f"{self._format_percent(entry['percentage_max'])} ou "
+                    f"{self._format_brl(entry['minimum_amount'])}, o que for maior"
+                )
+            elif entry["value_type"] == "formula":
+                value = self._format_formula(entry)
             else:
                 continue
             channel = entry.get("delivery_channel", "").strip()
@@ -160,6 +203,22 @@ class TariffAnswerBuilder:
                 "do terminal. Consulte 'tarifas e pacotes' no app para confirmar o que esta incluido."
             )
         return message + suffix
+
+    def _format_formula(self, entry: dict) -> str:
+        dimensions = entry.get("dimensions", {})
+        if entry.get("amount") and dimensions.get("additional_percentage_of_volume"):
+            return (
+                f"{self._format_brl(entry['amount'])} + "
+                f"{dimensions['additional_percentage_of_volume']} do volume"
+            )
+        if dimensions.get("fixed_amount") is not None and entry.get("percentage_max") is not None:
+            return (
+                f"{self._format_percent(entry['percentage_max'])} + "
+                f"{self._format_brl(dimensions['fixed_amount'])}"
+            )
+        if dimensions.get("fixed_option") and dimensions.get("regressive_option"):
+            return f"{dimensions['fixed_option']} ou {dimensions['regressive_option']} regressivo"
+        return "conforme fórmula oficial da operação"
 
     def _format_brl(self, value: str) -> str:
         number = float(value)

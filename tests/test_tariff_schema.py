@@ -101,7 +101,7 @@ def test_tariff_auxiliary_sync_is_idempotent(monkeypatch) -> None:  # noqa: ANN0
     store.sync_tariff_auxiliary(catalog)
 
     sql = "\n".join(cursor.statements)
-    assert sql.count("insert into service_packages") == 4
-    assert sql.count("insert into package_items") == 22
-    assert sql.count("insert into tariff_rules") == 6
+    assert sql.count("insert into service_packages") == 50
+    assert sql.count("insert into package_items") == 78
+    assert sql.count("insert into tariff_rules") == 56
     assert sql.count("insert into tariff_entry_rules") == 10

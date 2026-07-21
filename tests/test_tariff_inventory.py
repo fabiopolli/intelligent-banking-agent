@@ -45,9 +45,18 @@ def test_published_tariffs_are_reviewed_and_cover_demo_categories() -> None:
 def test_auxiliary_catalog_populates_packages_items_rules_and_links() -> None:
     catalog = TariffCatalogLoader().load_auxiliary()
 
-    assert len(catalog["packages"]) == 4
-    assert len(catalog["package_items"]) == 22
-    assert len(catalog["rules"]) == 6
+    assert len(catalog["packages"]) == 50
+    assert len(catalog["package_items"]) == 78
+    assert len(catalog["rules"]) == 56
     assert len(catalog["entry_rule_links"]) == 10
     assert all(item["status"] == "published" and item["reviewed_at"] for item in catalog["packages"])
     assert all(item["status"] == "published" and item["reviewed_at"] for item in catalog["rules"])
+
+
+def test_tariff_reconciliation_accounts_for_every_pdf_page_and_catalog_record() -> None:
+    reconciliation = TariffCatalogLoader().load_reconciliation()
+
+    assert len(reconciliation["pages"]) == 25
+    assert all(page["status"] in {"reviewed", "complete_with_conflicts"} for page in reconciliation["pages"])
+    assert len(reconciliation["conflicts"]) == 2
+    assert all(conflict["status"] == "review_required" for conflict in reconciliation["conflicts"])

@@ -74,7 +74,7 @@ class GroundedKnowledgeService:
                 "na simulacao vigente antes da contratacao."
             )
             llm_trace = None
-        elif self._is_investment_query(query):
+        elif self._is_investment_query(query) and not self._is_specific_investment_tariff_query(query):
             retrieved = self._ensure_source_context(
                 retrieved,
                 "https://www.itau.com.br/investimentos",
@@ -209,6 +209,13 @@ class GroundedKnowledgeService:
         return bool(
             query_terms
             & {"investimento", "investimentos", "fundo", "fundos", "tesouro", "custodia", "corretagem"}
+        )
+
+    def _is_specific_investment_tariff_query(self, query: str) -> bool:
+        query_terms = set(self._retriever._tokenize(query))
+        return bool(
+            query_terms
+            & {"custodia", "corretagem", "tesouro", "cripto", "performance", "carregamento", "escrow"}
         )
 
     def _is_tariff_navigation_query(self, query: str) -> bool:

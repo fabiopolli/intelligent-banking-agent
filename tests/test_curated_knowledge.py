@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 from app.config import settings
 from app.services.knowledge.llm import (
     DockerModelRunnerGroundedFaqSynthesizer,
@@ -122,7 +124,48 @@ def test_structured_ted_answer_is_direct_and_does_not_call_llm() -> None:
 
     assert "R$ 11,10" in result["message"]
     assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("Qual a anuidade do Itau Click Platinum?", "isento"),
+        ("Qual a custodia B3 do Tesouro Direto?", "0,25%"),
+        ("Quanto custa a implantacao de Escrow Account?", "R$ 20.000,00"),
+        ("Qual a taxa de carregamento da previdencia?", "5,00%"),
+        ("Quanto custa a cessao de direitos do consorcio?", "R$ 650,00"),
+    ],
+)
+def test_structured_tariff_formats_all_official_value_types(query: str, expected: str) -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    result = GroundedKnowledgeService(retriever=retriever, synthesizer=None).answer_with_trace(query)
+
+    assert expected in result["message"]
+    assert result["observability"]["llm"]["provider"] == "disabled"
+
+
+def test_conflicting_financing_values_are_not_published_to_customer() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    result = GroundedKnowledgeService(retriever=retriever, synthesizer=None).answer_with_trace(
+        "Qual a tarifa de cadastro para financiamento?"
+    )
+
+    assert "R$ 1.149,00" not in result["message"]
+    assert "R$ 1.025,00" not in result["message"]
+    assert "valores divergentes" in result["message"]
     assert "grounded_faq_synthesizer" not in result["observability"]["tools_called"]
+
+
+def test_exact_card_and_ccme_queries_do_not_return_neighboring_tariffs() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    card = service.answer_with_trace("Qual a anuidade do Itau Click Platinum?")
+    ccme = service.answer_with_trace("Quanto custa a ordem de pagamento recebida na CCME?")
+
+    assert "isento" in card["message"]
+    assert "R$ 214,80" not in card["message"]
+    assert "US$ 20,00" in ccme["message"]
 
 
 def test_structured_cheque_and_fund_answers_use_published_values() -> None:
@@ -190,6 +233,7 @@ def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  #
     timeout = captured["timeout"]
     assert timeout.read == ui_common.CHAT_REQUEST_TIMEOUT_SECONDS
     assert timeout.connect == 3.0
+    assert captured["headers"] == {"X-Demo-Auth-Token": ui_common.DEFAULT_DEMO_AUTH_TOKEN}
 
 
 def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001

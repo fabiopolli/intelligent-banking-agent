@@ -7,6 +7,7 @@ from pathlib import Path
 TARIFF_INVENTORY_PATH = Path("knowledge/catalog/tariff_inventory.json")
 TARIFF_ENTRIES_PATH = Path("knowledge/catalog/tariff_entries.json")
 TARIFF_AUXILIARY_PATH = Path("knowledge/catalog/tariff_auxiliary.json")
+TARIFF_RECONCILIATION_PATH = Path("knowledge/catalog/tariff_reconciliation.json")
 
 
 class TariffCatalogLoader:
@@ -15,10 +16,40 @@ class TariffCatalogLoader:
         inventory_path: Path = TARIFF_INVENTORY_PATH,
         entries_path: Path = TARIFF_ENTRIES_PATH,
         auxiliary_path: Path = TARIFF_AUXILIARY_PATH,
+        reconciliation_path: Path = TARIFF_RECONCILIATION_PATH,
     ) -> None:
         self._inventory_path = inventory_path
         self._entries_path = entries_path
         self._auxiliary_path = auxiliary_path
+        self._reconciliation_path = reconciliation_path
+
+    def load_reconciliation(self) -> dict:
+        payload = json.loads(self._reconciliation_path.read_text(encoding="utf-8"))
+        pages = payload.get("pages", [])
+        if payload.get("page_count") != 25 or [item.get("page_number") for item in pages] != list(range(1, 26)):
+            raise ValueError("Tariff reconciliation must cover all 25 contiguous PDF pages.")
+
+        entries = self.load_entries()["entries"]
+        auxiliary = self.load_auxiliary()
+        package_page = {item["package_id"]: item["page_number"] for item in auxiliary["packages"]}
+        actual = {
+            page: {
+                "tariff_records": sum(item["page_number"] == page for item in entries),
+                "package_records": sum(item["page_number"] == page for item in auxiliary["packages"]),
+                "package_item_records": sum(package_page[item["package_id"]] == page for item in auxiliary["package_items"]),
+                "rule_records": sum(item["page_number"] == page for item in auxiliary["rules"]),
+            }
+            for page in range(1, 26)
+        }
+        for page in pages:
+            counts = actual[page["page_number"]]
+            if any(page[field] != counts[field] for field in counts):
+                raise ValueError(f"Tariff reconciliation count mismatch on page {page['page_number']}.")
+            if page.get("status") not in {"reviewed", "complete_with_conflicts"}:
+                raise ValueError(f"Tariff page {page['page_number']} is not fully reconciled.")
+        if any(item.get("status") != "review_required" for item in payload.get("conflicts", [])):
+            raise ValueError("Tariff conflicts must remain blocked for review.")
+        return payload
 
     def load_inventory(self) -> dict:
         payload = json.loads(self._inventory_path.read_text(encoding="utf-8"))
@@ -27,6 +58,9 @@ class TariffCatalogLoader:
 
     def load_auxiliary(self) -> dict:
         payload = json.loads(self._auxiliary_path.read_text(encoding="utf-8"))
+        for rule in payload.get("rules", []):
+            if rule.get("page_number") == 23:
+                rule["rule_code"] = f"NOTE-{rule['rule_code']}"
         package_ids = {item["package_id"] for item in payload.get("packages", [])}
         rule_ids = {item["rule_id"] for item in payload.get("rules", [])}
         tariff_ids = {item["tariff_id"] for item in self.load_entries()["entries"]}
