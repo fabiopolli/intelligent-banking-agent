@@ -6,6 +6,29 @@ from app.schemas.outbound import BalanceResponse, CustomerProfileResponse
 
 
 class ResponseBuilder:
+    def social(self, session_id: str, message: str) -> HarnessResponse:
+        return HarnessResponse(
+            route="social_fast_path",
+            session_id=session_id,
+            message=message,
+            observability={
+                "tools_called": ["classify_social_message"],
+                "retrieval": {"candidate_count": 0, "sources": [], "approved_context": []},
+                "llm": {
+                    "provider": "not_called",
+                    "model": None,
+                    "fallback_used": False,
+                    "token_usage": None,
+                    "prompt": None,
+                },
+                "planner": {
+                    "provider": "not_called",
+                    "fallback_used": False,
+                    "fallback_reason": "social_fast_path",
+                },
+            },
+        )
+
     def emergency(self, session_id: str, profile: CustomerProfileResponse) -> HarnessResponse:
         return HarnessResponse(
             route="emergency",

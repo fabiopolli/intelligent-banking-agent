@@ -29,7 +29,7 @@ PLANNER_TOOLS = [
             "properties": {
                 "reason": {
                     "type": "string",
-                    "description": "Motivo curto, sem dados sensiveis, para selecionar esta capability.",
+                    "description": "A short, non-sensitive reason for selecting this capability.",
                 }
             },
             "required": ["reason"],
@@ -38,11 +38,11 @@ PLANNER_TOOLS = [
         "strict": True,
     }
     for name, description in {
-        "search_official_knowledge": "Responder duvidas usando apenas a base oficial aprovada.",
-        "get_customer_balance": "Consultar o saldo da conta solicitada pelo cliente.",
-        "manage_card_limit": "Consultar limite ou iniciar uma solicitacao de aumento de limite.",
-        "prepare_pix_transfer": "Coletar dados e preparar uma transferencia Pix sujeita a politicas e HITL.",
-        "protect_customer_account": "Priorizar fraude, roubo, perda ou bloqueio preventivo do cartao.",
+        "search_official_knowledge": "Answer questions using only the approved official knowledge base.",
+        "get_customer_balance": "Retrieve the requested customer's account balance.",
+        "manage_card_limit": "Retrieve a card limit or start a controlled limit-increase request.",
+        "prepare_pix_transfer": "Collect data and prepare a Pix transfer subject to policy and HITL.",
+        "protect_customer_account": "Prioritize fraud, theft, loss, or preventive card blocking.",
     }.items()
 ]
 

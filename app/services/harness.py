@@ -20,6 +20,7 @@ from app.services.mock_bank import mock_bank_service
 from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
+from app.services.social_conversation import social_conversation_service
 from app.services.audit_log import (
     AuditExecutionContext,
     audit_execution_scope,
@@ -89,6 +90,9 @@ class DemoHarness:
                 },
             }
             return response
+        social_answer = social_conversation_service.answer(payload.message)
+        if social_answer is not None:
+            return self._response_builder.social(payload.session_id, social_answer)
         if self._is_confirmation_message(payload.message):
             return self._resume_pending_operation(payload, auth)
         if self._has_collectable_limit_draft(payload):

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     llm_grounded_faq_enabled: bool = False
     llm_provider: str = "local"
     llm_fallback_provider: str = "local"
-    llm_model: str = "gpt-5.6-luna"
+    llm_model: str = "gpt-5.4"
     llm_timeout_seconds: float = Field(default=20.0, gt=0)
     llm_context_char_limit: int = Field(default=3000, ge=500)
     llm_reasoning_effort: str = "low"

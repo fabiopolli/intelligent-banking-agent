@@ -101,7 +101,7 @@ def test_prompt_registry_metadata_is_traced(monkeypatch) -> None:  # noqa: ANN00
     planner.classify("Qual a taxa do consignado?")
 
     assert planner.last_trace["prompt_profile"] == "banking-v1"
-    assert planner.last_trace["prompt_version"] == "1.0.0"
+    assert planner.last_trace["prompt_version"] == "1.1.0"
     assert len(planner.last_trace["prompt_hash"]) == 12
 
 
@@ -123,3 +123,40 @@ def test_sensitive_credentials_are_blocked_before_planner() -> None:
     assert result["pending_operation"] == "pix_policy_review"
     assert result["observability"]["guardrails"]["stage"] == "pre_llm_ingress"
     assert result["observability"]["planner"]["provider"] == "not_called"
+
+
+def test_greeting_and_introduction_use_social_fast_path_without_planner() -> None:
+    class MustNotRunPlanner:
+        last_trace = {}
+
+        def classify(self, message):  # noqa: ANN001, ANN201
+            raise AssertionError("Planner must not run for a social message.")
+
+    result = DemoHarness(router=MustNotRunPlanner()).handle_message(
+        ChatRequest(
+            session_id="social-greeting",
+            customer_id="123",
+            message="Olá, meu nome é Fabio",
+        )
+    )
+
+    assert result["route"] == "social_fast_path"
+    assert result["message"].startswith("Olá, Fabio!")
+    assert "saldo" in result["message"].lower()
+    assert result["grounding_sources"] == []
+    assert result["observability"]["planner"]["provider"] == "not_called"
+    assert result["observability"]["llm"]["provider"] == "not_called"
+    assert result["observability"]["retrieval"]["candidate_count"] == 0
+
+
+def test_greeting_with_banking_intent_does_not_hide_requested_operation() -> None:
+    result = DemoHarness(router=DeterministicPlanner()).handle_message(
+        ChatRequest(
+            session_id="social-with-balance",
+            customer_id="123",
+            message="Olá, qual é o meu saldo?",
+        )
+    )
+
+    assert result["route"] == "core_banking"
+    assert "saldo" in result["message"].lower()

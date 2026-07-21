@@ -225,7 +225,7 @@ o Agent Harness valida RBAC, politicas, dados, HITL e auditoria antes de executa
 LLM_GROUNDED_FAQ_ENABLED=true
 LLM_PROVIDER=openai
 LLM_FALLBACK_PROVIDER=docker_model_runner
-LLM_MODEL=gpt-5.6-sol
+LLM_MODEL=gpt-5.4
 LLM_REASONING_EFFORT=low
 AGENTIC_PLANNER_ENABLED=true
 PROMPT_PROFILE=banking-v1
@@ -234,6 +234,9 @@ OPENAI_API_KEY=<configure somente no .env ignorado pelo Git>
 
 Os prompts versionados ficam em `prompts/manifest.json` e `prompts/banking-v1/`. O trace registra
 perfil, versao e hash do prompt, modelo, function tool selecionada, rota, fallback, tokens e duracao.
+As instrucoes internas sao escritas em ingles para facilitar manutencao entre providers, mas o contrato
+do sintetizador exige respostas naturais em portugues do Brasil. Saudacoes, apresentacoes, agradecimentos
+e despedidas obvias usam `social_fast_path` nativo, sem planner, retrieval ou consumo de tokens.
 Sem chave, quota ou provider, o router deterministico mantem a aplicacao utilizavel; esse fallback e
 resiliencia, nao evidencia de uma execucao LLM bem-sucedida.
 

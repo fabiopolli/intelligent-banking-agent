@@ -169,16 +169,16 @@ class OpenAIGroundedFaqSynthesizer:
             clipped = text[:remaining]
             total_chars += len(clipped)
             context_blocks.append(
-                f"Fonte {index}: {item.source}\nTitulo: {item.title}\nTrecho oficial: {clipped}"
+                f"Source {index}: {item.source}\nTitle: {item.title}\nOfficial excerpt: {clipped}"
             )
 
         joined_context = "\n\n".join(context_blocks)
         return (
-            f"Pergunta do cliente: {query}\n\n"
-            "Contexto oficial aprovado pelo Harness:\n"
+            f"Customer question: {query}\n\n"
+            "Official context approved by the Agent Harness:\n"
             f"{joined_context}\n\n"
-            "Responda em portugues do Brasil, de forma curta, clara e apropriada para chat. "
-            "Nao cite fontes, URLs, nomes de arquivos, paginas, trechos ou o contexto aprovado na conversa."
+            "Answer in natural Brazilian Portuguese. Lead with the useful answer and keep it clear for chat. "
+            "Do not cite sources, URLs, filenames, pages, excerpts, or approved context in the conversation."
         )
 
     def _fallback_trace(
@@ -227,6 +227,12 @@ class OpenAIGroundedFaqSynthesizer:
     def _looks_like_prompt_echo(self, text: str) -> bool:
         normalized = text.lower()
         blocked_terms = [
+            "customer question:",
+            "official context approved",
+            "source 1:",
+            "source 2:",
+            "official excerpt:",
+            "do not cite sources",
             "pergunta do cliente:",
             "contexto oficial aprovado",
             "fonte 1:",

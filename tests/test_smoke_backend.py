@@ -853,9 +853,9 @@ def test_openai_grounded_prompt_contains_only_question_and_official_context() ->
     )[:2]
     prompt = synthesizer._build_user_prompt("Como falo com o Itau pelo WhatsApp?", retrieved)  # noqa: SLF001
 
-    assert "Pergunta do cliente: Como falo com o Itau pelo WhatsApp?" in prompt
+    assert "Customer question: Como falo com o Itau pelo WhatsApp?" in prompt
     assert "https://www.itau.com.br/atendimento-itau/para-voce" in prompt
-    assert "Nao cite fontes" in prompt
+    assert "Do not cite sources" in prompt
     assert "checkpoint" not in prompt.lower()
     assert "customer_id" not in prompt.lower()
 
