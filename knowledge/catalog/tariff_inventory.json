@@ -1,0 +1,253 @@
+{
+  "catalog_version": 1,
+  "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+  "source_hash": "0bee950453bdb3fa1b77873dcfbea7a2370e6e6cb3b89b2d3e25987f65e059bc",
+  "effective_from": "2026-07-01",
+  "page_count": 25,
+  "sections": [
+    {
+      "code": "front_matter",
+      "name": "Capa e navegação",
+      "page_start": 1,
+      "page_end": 2,
+      "sort_order": 1
+    },
+    {
+      "code": "packages",
+      "name": "Pacotes de serviços",
+      "page_start": 3,
+      "page_end": 5,
+      "sort_order": 2
+    },
+    {
+      "code": "priority_services",
+      "name": "Serviços prioritários",
+      "page_start": 6,
+      "page_end": 8,
+      "sort_order": 3
+    },
+    {
+      "code": "cards_checks_transfers",
+      "name": "Cartões, cheques e transferências",
+      "page_start": 9,
+      "page_end": 16,
+      "sort_order": 4
+    },
+    {
+      "code": "credit_fx_investments",
+      "name": "Crédito, câmbio e investimentos",
+      "page_start": 17,
+      "page_end": 22,
+      "sort_order": 5
+    },
+    {
+      "code": "legends",
+      "name": "Legendas e observações",
+      "page_start": 23,
+      "page_end": 25,
+      "sort_order": 6
+    }
+  ],
+  "pages": [
+    {
+      "page_number": 1,
+      "section_code": "front_matter",
+      "image_hash": "4a40e45e3437645d59cbe54c5c2706a7ac5c2b264ee8bc5d16e9d7625fe35657",
+      "dense_ocr_hash": "1f17f4373140715b7a663dc24452ef98b1be446b78d3a601cb0c4a6c83666bd0",
+      "sparse_ocr_hash": "9ce2547abbb5203df7eca166c163436e5068b52ee7eb5560019cfe664a596e5a",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 2,
+      "section_code": "front_matter",
+      "image_hash": "c514aa227bcb85451a2fcb7e37e86ec8c08a6fe6316b9dd2084fe7623c5340b3",
+      "dense_ocr_hash": "00f94d5f096e1b53ed3f9d13aada38c02177211fce77328edded2e66551afb12",
+      "sparse_ocr_hash": "e072a24dccf194327309407df83f7183f0256f2a34e0252693debc620268ecbe",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 3,
+      "section_code": "packages",
+      "image_hash": "88832c5031cafb9a8963d3b213b426554fba5a4ad217b3bd77d7c42fd5339088",
+      "dense_ocr_hash": "7c782a6a706177b9ad774cb0beb704f04e0522da406d886211aab0c093db583b",
+      "sparse_ocr_hash": "80bf6900399140d5ca0d69c67b4873968fd57f48fef0bdf66f7f50fdbc55f5ed",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 4,
+      "section_code": "packages",
+      "image_hash": "3aca97c362187573873535e0da65f3dc60bf342319a423f342342fce08d54ffb",
+      "dense_ocr_hash": "76b59aaaff3e64335b5db4206f3a0e61b274b3796e2c570383f257e453fb3ccd",
+      "sparse_ocr_hash": "5ca661864c7b70e8d2d7bafc545dd6e5be01f720c4f866732b66398724fe1f35",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 5,
+      "section_code": "packages",
+      "image_hash": "0b73bbac482f9f38e2dbf735018194bb0b1f93145c9a6b662ca350c78ce840d5",
+      "dense_ocr_hash": "22e9c3426ce4728ae1989c2b448649e75dc6fcf9827dc26e4b3aaadae1dfea1d",
+      "sparse_ocr_hash": "b91e01d1f2967b993cd4351d3311d159a4d8384530613274a0a87009c0287229",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 6,
+      "section_code": "priority_services",
+      "image_hash": "682d2378ea55db7068a4081d6e6fc6043cff52404d4bcdd5b54ec940a9b389f5",
+      "dense_ocr_hash": "1f7ffff1de6488a74df4b19a4811ca9672a9203d0d6a1b1462dfa6c18926b89c",
+      "sparse_ocr_hash": "08b07c738a3c1159ca6a3304ff8cf2c1b8514e8890f2fb44cb8676e902aab2fa",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 7,
+      "section_code": "priority_services",
+      "image_hash": "efe0d93bea8329f8b1c5dc242e41631cf105bd8a14b493319a0dd8230c398980",
+      "dense_ocr_hash": "c367bae8717845d4c996dcd1c9686b2e7be1da380856587ab4947288fd5478b3",
+      "sparse_ocr_hash": "fb225ea2c7cd4127fe579e150d62e3e76d70d074c4fa03bb7db17e5838aad533",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 8,
+      "section_code": "priority_services",
+      "image_hash": "c6feba2f5ef5b278d5b169a2af2ecee7a3578f91163b4fc3da6338728697e41e",
+      "dense_ocr_hash": "95019e435609a6184d9e8bc32105b72e4c5d391e483e0c665de1751feb09c7f9",
+      "sparse_ocr_hash": "917e89aadb1113041ad911affb9eff08ae7350ee0cd25c771ddb1c64385d3af7",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 9,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "154ecba1e52c1048e7828219e1aac1b2a903d7854f565c142179f5b731b2bc88",
+      "dense_ocr_hash": "93371ed9586ddcec32a175cfc591629884bf415e3650f9c86e8025e99ff97d12",
+      "sparse_ocr_hash": "0248e76db6f0252c2e923ea5d942423c96676bc339848c3e6cf98ec1baec9b45",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 10,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "9b5ab35f6b2188c59da2a6df554662ecbf47fda68ead1768376400b8b333a553",
+      "dense_ocr_hash": "718668852ca30ef3c810f95b428dcd4006cf08c007f184384d200c6704fddfce",
+      "sparse_ocr_hash": "5e6f5508582ddd60a9432a0b068f9bed7b9a483fc6daea2139eb4e10121cc4e1",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 11,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "93ab4803ffdc7eadb9e7a8c427cd71ab08fb5e0559d78a87657d7a38caec0d46",
+      "dense_ocr_hash": "40f87a4977d3dfca81b3a68515b2ca3f2379e0c9955783aedb02f2a5ac42c07a",
+      "sparse_ocr_hash": "39429622819719f88efbb0f3254e65f8cd7c7610571d7b862c8ddfa9175a4c97",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 12,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "93f5da059d27b27e5d5bcce3ba9eeb07dec0b25872199d5cadb06e17f96e910a",
+      "dense_ocr_hash": "0a1de96b4f2adc5db84c8c4c041c3260c61d2d8bf99fb6c8393f8b1ea3d59b2f",
+      "sparse_ocr_hash": "0bc745a8f157ea097f51b7e5a040d56fc60f026287131e12f8d01838d7a7be2c",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 13,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "a327ab17d749ab4fdd4ba1bfd4de7ab46886e7ed1ccb101e802d0c44324ba98f",
+      "dense_ocr_hash": "fb34753c64a7f1897f281301ff26013c6dfc78e04d376a6cc807534c1d0b3e76",
+      "sparse_ocr_hash": "2f0991f3b646fffe43261c4f70ed5ff02da64089478cbe5b4ce097a9475e02c2",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 14,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "619f5b45501dbd46fa6172edabb43910ec70154928acb045e04a8df1d633cd09",
+      "dense_ocr_hash": "b51ac42a362c99c016e5c0c22803e85deaf25bd623e95f3b60ec06499138df77",
+      "sparse_ocr_hash": "2cd09b14af60a6ec5933b21d908279fdd3220bb3aa15b926240c4c2ccd1c26fb",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 15,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "faafd759f1bb71e80c269501783af84c03e890a9cbfb72b5b5fe4a2c68a84b01",
+      "dense_ocr_hash": "f73db7b2df71225f4e7566574c83a050309df600317d2f94b2f79da952a4a48f",
+      "sparse_ocr_hash": "b0af76f9f4961510ca2c1e13bb6abef8c3c5a8e124603d5e507291a669ed5727",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 16,
+      "section_code": "cards_checks_transfers",
+      "image_hash": "4e8afb7163e4dfe2b3e04b8a395e3fb043dc9227a796481b607aa47319091bd2",
+      "dense_ocr_hash": "30b8d3f037414657b9223cc7e9766f49cd77506cae39aded6a173dc9f4ce971a",
+      "sparse_ocr_hash": "3d3ab377152f5706fc94d1ea05572cff117f90fb410bce1aeb1940d2062f9e49",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 17,
+      "section_code": "credit_fx_investments",
+      "image_hash": "38cfe2bbdbb2a2bebd141a5b5ee7539871a9a81a1247c399f5d37529a96796b9",
+      "dense_ocr_hash": "d84a948df99e68d385ad52bb7035ebafee3c8308ec1ed36976bcd870f921f3c7",
+      "sparse_ocr_hash": "68e8e6cd08cbf5eb4a509003e4619feec4f628cc1b6f43e198d090605ff06123",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 18,
+      "section_code": "credit_fx_investments",
+      "image_hash": "c8a21311abb7f4c63eea30522405c36784d221b1e41cea9dafe0209e148dde76",
+      "dense_ocr_hash": "9e49819d86e92d6483c98aff65460fa51b0816504b2e915806a14711a6ca0ddd",
+      "sparse_ocr_hash": "3efa4660879fb88219b548251b8796a7358cb5ecce675206582c8a3ac33a1f97",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 19,
+      "section_code": "credit_fx_investments",
+      "image_hash": "fe24ebf674644a714fab3fe3f1ea52aa81d211292ada02d842ba28ae23ec53a5",
+      "dense_ocr_hash": "b0f1ccde1167ef2fefea00dc187b6168d48ba3a6b210f26334b2b6cada452ae7",
+      "sparse_ocr_hash": "2e6c883fa6ea9b2e00c6172f1bc4d57921e08376114aa1059425d8decef0fb86",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 20,
+      "section_code": "credit_fx_investments",
+      "image_hash": "0188de82588dcc9ac99a6e6808663537a100a9d2e5c53d4c86822e3fdff96434",
+      "dense_ocr_hash": "f801668c400484996c7b3c4a7873ee7b1186981305f7d9a44c99f4e14e8e373b",
+      "sparse_ocr_hash": "d7c7702c3e11b29ff2883378a241dc37cef768070d24beec267c6771ce118a47",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 21,
+      "section_code": "credit_fx_investments",
+      "image_hash": "ab3607539c46ae316322ec5148276f17c4cb6bbf473f9a0e0475dde4a08c9684",
+      "dense_ocr_hash": "07fbc4fd85b9d74de227f67eb876f46572c59c998fad24b4f11e7fb273fa294a",
+      "sparse_ocr_hash": "7fc95ac9d723a04d110feaa8fb9ec6580bafb0f9a83e260f53a5d5d0211ecd67",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 22,
+      "section_code": "credit_fx_investments",
+      "image_hash": "5f3ade6fc18708c96a0ec5b7f521eeef8c82153c252c936e4c83d0bc8ee3526b",
+      "dense_ocr_hash": "93ffb4e688011e5fbf442eba77122edd3d80071406d62f388fad83a4d323e69c",
+      "sparse_ocr_hash": "b81d01f8a05801b5add881d076cc65870793a853ac9b2e55cfac441dac84c2a5",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 23,
+      "section_code": "legends",
+      "image_hash": "60da17561e00fec7d96b3b111c4a67810f43e8bd187fca5c8665066b548f50b2",
+      "dense_ocr_hash": "ca16a6394c480ce48431e88d10fbc9cd04ffb99384c99f77ea6abd113c715672",
+      "sparse_ocr_hash": "14525247b7f41b589c96e2cc3fa2d21202e5d8a06e392d13ebd6e23cfed2d60b",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 24,
+      "section_code": "legends",
+      "image_hash": "a0ed2121b548ae5c937b82255a0e76f3d5d6da7cd272f51cab6e76cb2805f6b1",
+      "dense_ocr_hash": "729801a4891c8d5b221aa94502c846aed6d53b235c7d1097b42eeab8a5215643",
+      "sparse_ocr_hash": "2ebf05615609370175aa777e4aa2f93567bbb7853bca4294fb975f1473f8cc19",
+      "review_status": "review_required"
+    },
+    {
+      "page_number": 25,
+      "section_code": "legends",
+      "image_hash": "9278c163508ca94d92b28db77d2cf17badc5da1a95f90ed28f8e646d37e4c1f8",
+      "dense_ocr_hash": "a8663f297566d11fa0c34a5e2a2564d3017196e818be34559789af880d409004",
+      "sparse_ocr_hash": "791c003387cf0baaa9000de76a9b9eb1c79fd190130199ce49c306d12d0664a2",
+      "review_status": "review_required"
+    }
+  ]
+}

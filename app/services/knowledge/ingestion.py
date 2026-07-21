@@ -14,6 +14,7 @@ from app.services.knowledge.config import (
     TARIFF_PDF_SOURCE,
 )
 from app.services.knowledge.schemas import KnowledgeDocument
+from app.services.knowledge.tariff_catalog import TariffCatalogLoader
 from app.services.observability import traceable
 
 
@@ -181,6 +182,7 @@ def build_official_documents() -> list[KnowledgeDocument]:
 
         store = PostgresKnowledgeStore(settings.database_url, settings.knowledge_embedding_dimensions)
         store.sync(curated, source_chunks=web_documents + ingested)
+        store.sync_tariff_inventory(TariffCatalogLoader().load_inventory())
         return store.load_documents()
     curated_sources = {document.source for document in curated}
     legacy_documents = [

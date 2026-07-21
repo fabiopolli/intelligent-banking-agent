@@ -144,6 +144,67 @@ class PostgresKnowledgeStore:
             chunks = [KnowledgeDocument(title=row[0], source=row[1], text=row[2]) for row in cursor]
             return curated + chunks
 
+    def sync_tariff_inventory(self, inventory: dict) -> None:
+        source = str(inventory["source"])
+        source_id = self._stable_id("source", source)
+        with self._connect() as connection, connection.cursor() as cursor:
+            self._ensure_schema(cursor)
+            cursor.execute(
+                """
+                INSERT INTO knowledge_sources (
+                    source_id, source, source_type, version, status, content_hash
+                ) VALUES (%s, %s, 'official-pdf', %s, 'published', %s)
+                ON CONFLICT (source_id) DO UPDATE SET
+                    version = EXCLUDED.version, status = EXCLUDED.status,
+                    content_hash = EXCLUDED.content_hash, updated_at = CURRENT_TIMESTAMP
+                """,
+                (source_id, source, inventory["catalog_version"], inventory["source_hash"]),
+            )
+            section_ids: dict[str, str] = {}
+            for section in inventory["sections"]:
+                section_id = self._stable_id("section", f"{source}|{section['code']}")
+                section_ids[section["code"]] = section_id
+                cursor.execute(
+                    """
+                    INSERT INTO knowledge_sections (
+                        section_id, source_id, code, name, sort_order, page_start, page_end
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (section_id) DO UPDATE SET
+                        name = EXCLUDED.name, sort_order = EXCLUDED.sort_order,
+                        page_start = EXCLUDED.page_start, page_end = EXCLUDED.page_end
+                    """,
+                    (
+                        section_id,
+                        source_id,
+                        section["code"],
+                        section["name"],
+                        section["sort_order"],
+                        section["page_start"],
+                        section["page_end"],
+                    ),
+                )
+            for page in inventory["pages"]:
+                cursor.execute(
+                    """
+                    INSERT INTO knowledge_pages (
+                        source_id, page_number, section_id, content_hash,
+                        extracted_text, review_status
+                    ) VALUES (%s, %s, %s, %s, '', %s)
+                    ON CONFLICT (source_id, page_number) DO UPDATE SET
+                        section_id = EXCLUDED.section_id,
+                        content_hash = EXCLUDED.content_hash,
+                        review_status = EXCLUDED.review_status,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (
+                        source_id,
+                        page["page_number"],
+                        section_ids[page["section_code"]],
+                        page["image_hash"],
+                        page["review_status"],
+                    ),
+                )
+
     def search(self, query: str, top_k: int = 6) -> list[RetrievedKnowledge]:
         query_vector = self._vector_literal(self._embedding.embed(query))
         with self._connect() as connection, connection.cursor() as cursor:
