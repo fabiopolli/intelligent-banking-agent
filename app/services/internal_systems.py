@@ -6,7 +6,12 @@ import time
 from typing import Protocol
 
 from app.config import settings
-from app.schemas.outbound import BalanceResponse, CustomerProfileResponse
+from app.schemas.outbound import (
+    BalanceResponse,
+    CardLimitUpdateRequest,
+    CustomerProfileResponse,
+    PixCreateRequest,
+)
 from app.security.request_credentials import current_trusted_auth_token
 from app.services.mock_bank import mock_bank_service
 
@@ -21,6 +26,10 @@ class InternalSystemsGateway(Protocol):
     def get_account_balance(self, customer_id: str) -> BalanceResponse | None: ...
 
     def search_official_knowledge(self, query: str) -> dict: ...
+
+    def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict: ...
+
+    def create_pix(self, payload: PixCreateRequest) -> dict: ...
 
 
 class InternalSystemsUnavailable(RuntimeError):
@@ -55,6 +64,18 @@ class LocalInternalSystemsGateway:
         started_at = time.perf_counter()
         result = knowledge_service.answer_with_trace(query)
         self.last_trace = self._trace("search_tariff_knowledge", started_at)
+        return result
+
+    def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict:
+        started_at = time.perf_counter()
+        result = mock_bank_service.update_card_limit(payload)
+        self.last_trace = self._trace("update_card_limit", started_at)
+        return result
+
+    def create_pix(self, payload: PixCreateRequest) -> dict:
+        started_at = time.perf_counter()
+        result = mock_bank_service.create_pix(payload)
+        self.last_trace = self._trace("create_pix", started_at)
         return result
 
     @staticmethod
@@ -95,6 +116,27 @@ class McpInternalSystemsGateway:
 
     def search_official_knowledge(self, query: str) -> dict:
         return self._call_tool("search_tariff_knowledge", {"query": query})
+
+    def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict:
+        return self._call_tool(
+            "update_card_limit",
+            {
+                "auth_token": current_trusted_auth_token(),
+                "target_customer_id": payload.customer_id,
+                "new_limit": payload.new_limit,
+            },
+        )
+
+    def create_pix(self, payload: PixCreateRequest) -> dict:
+        return self._call_tool(
+            "create_pix",
+            {
+                "auth_token": current_trusted_auth_token(),
+                "target_customer_id": payload.customer_id,
+                "amount": payload.amount,
+                "destination_key": payload.destination_key,
+            },
+        )
 
     def _call_tool(self, tool: str, arguments: dict) -> dict:
         started_at = time.perf_counter()

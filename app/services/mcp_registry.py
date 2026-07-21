@@ -40,7 +40,7 @@ class McpToolRegistry:
                 "transport": "mcp-and-internal-rest",
                 "path": "/v1/mcp/cards/limit",
                 "requires_rbac": True,
-                "requires_hitl": False,
+                "requires_hitl": True,
                 "audited": True,
                 "description": "Atualiza limite mockado e gera auditoria LIMIT_CHANGE.",
             },

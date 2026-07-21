@@ -4,6 +4,7 @@ import httpx
 
 from app.config import settings
 from app.schemas.messages import ChatRequest
+from app.schemas.outbound import CardLimitUpdateRequest, PixCreateRequest
 from app.services.knowledge_base import knowledge_service
 from app.services.mcp_registry import mcp_tool_registry
 from app.services.observability import langsmith_status
@@ -110,41 +111,48 @@ def get_account_balance(
 
 @mcp.tool()
 def update_card_limit(
-    session_id: str,
-    customer_id: str,
+    target_customer_id: str,
     new_limit: float,
     auth_token: str,
 ) -> dict:
-    """Start the Harness-owned limit workflow; eligibility and confirmation remain mandatory."""
+    """Execute a limit mutation already authorized and confirmed by the Agent Harness."""
 
-    return _send_to_api(
-        auth_token,
-        ChatRequest(
-            session_id=session_id,
-            customer_id=customer_id,
-            message=f"Quero aumentar o limite do meu cartao para R$ {new_limit:.2f}",
-        ),
+    identity_service.authenticate(auth_token, target_customer_id)
+    response = httpx.post(
+        f"{settings.api_internal_base_url}/mcp/cards/limit",
+        headers={"X-Internal-Tool-Key": settings.internal_tool_api_key},
+        json=CardLimitUpdateRequest(
+            customer_id=target_customer_id,
+            new_limit=new_limit,
+        ).model_dump(),
+        timeout=10.0,
     )
+    response.raise_for_status()
+    return response.json()
 
 
 @mcp.tool()
 def create_pix(
-    session_id: str,
-    customer_id: str,
+    target_customer_id: str,
     amount: float,
     destination_key: str,
     auth_token: str,
 ) -> dict:
-    """Start the Harness-owned Pix workflow with policy checks and HITL when required."""
+    """Execute a Pix mutation already authorized and confirmed by the Agent Harness."""
 
-    return _send_to_api(
-        auth_token,
-        ChatRequest(
-            session_id=session_id,
-            customer_id=customer_id,
-            message=f"Quero fazer um Pix de R$ {amount:.2f} para a chave {destination_key}",
-        ),
+    identity_service.authenticate(auth_token, target_customer_id)
+    response = httpx.post(
+        f"{settings.api_internal_base_url}/mcp/payments/pix",
+        headers={"X-Internal-Tool-Key": settings.internal_tool_api_key},
+        json=PixCreateRequest(
+            customer_id=target_customer_id,
+            amount=amount,
+            destination_key=destination_key,
+        ).model_dump(),
+        timeout=10.0,
     )
+    response.raise_for_status()
+    return response.json()
 
 
 @mcp.tool()

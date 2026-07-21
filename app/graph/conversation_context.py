@@ -57,7 +57,7 @@ class ConversationContextGraph:
     @classmethod
     def _signals(cls, message: str) -> ConversationContextState:
         normalized = cls._normalize(message)
-        change_terms = {"aumenta", "aumentar", "aumento", "elevar", "subir", "alterar"}
+        change_terms = {"aumenta", "aumentar", "aumente", "aumento", "elevar", "subir", "alterar"}
         return {
             "mentions_card_limit": "limite" in normalized,
             "requests_limit_change": any(term in normalized for term in change_terms),

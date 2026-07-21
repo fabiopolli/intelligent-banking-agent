@@ -17,7 +17,6 @@ from app.security.rbac import RBACService
 from app.services.checkpoint_store import CheckpointStore, checkpoint_store
 from app.services.observability import traceable
 from app.services.customer_support import CustomerSupportService
-from app.services.mock_bank import mock_bank_service
 from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
@@ -287,7 +286,9 @@ class DemoHarness:
 
     def _handle_limit_increase(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._rbac_service.validate_owner_access(auth, payload.customer_id, "write")
-        profile = CustomerSupportService.require_profile(mock_bank_service.get_customer_profile(payload.customer_id))
+        profile = CustomerSupportService.require_profile(
+            self._orchestrator.get_limit_profile(payload.customer_id)
+        )
         requested_limit = self._extract_amount(payload.message)
         if requested_limit is None:
             self._checkpoints.save_limit_draft(payload.session_id, {"customer_id": payload.customer_id})
@@ -446,7 +447,7 @@ class DemoHarness:
 
     def _is_limit_increase_request(self, message: str) -> bool:
         normalized = self._normalize(message)
-        increase_terms = {"aumentar", "aumento", "elevar", "subir", "alterar"}
+        increase_terms = {"aumenta", "aumentar", "aumente", "aumento", "elevar", "subir", "alterar"}
         return "limite" in normalized and any(term in normalized for term in increase_terms)
 
     def _is_contextual_limit_increase(self, payload: ChatRequest, context: dict | None = None) -> bool:

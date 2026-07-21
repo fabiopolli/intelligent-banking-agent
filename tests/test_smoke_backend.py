@@ -150,6 +150,34 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
                 },
             }
 
+        def update_card_limit(self, payload):  # noqa: ANN001, ANN201
+            self.calls.append(("update_card_limit", payload.customer_id, payload.new_limit))
+            self.last_trace = {
+                "tool": "update_card_limit",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 6,
+            }
+            return {
+                "customer_id": payload.customer_id,
+                "card_limit": payload.new_limit,
+                "available_limit": payload.new_limit,
+            }
+
+        def create_pix(self, payload):  # noqa: ANN001, ANN201
+            self.calls.append(("create_pix", payload.customer_id, payload.amount))
+            self.last_trace = {
+                "tool": "create_pix",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 7,
+            }
+            return {
+                "customer_id": payload.customer_id,
+                "balance": 25000 - payload.amount,
+                "status": "SUCCESS",
+            }
+
     gateway = RecordingGateway()
     monkeypatch.setattr(
         mock_bank_service,
@@ -195,6 +223,79 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
         "mcp-streamable-http.search_tariff_knowledge",
     ]
     assert faq_result["observability"]["mcp"][0]["status"] == "success"
+
+
+def test_critical_writes_use_mcp_gateway_only_after_hitl() -> None:
+    class RecordingWriteGateway:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+            self.last_trace: dict = {}
+
+        def get_card_limit(self, customer_id: str):  # noqa: ANN201
+            self.calls.append(("get_card_limit", customer_id))
+            return CustomerProfileResponse(
+                customer_id=customer_id,
+                name="Gateway Customer",
+                segment="Demo",
+                card_status="ACTIVE",
+                card_limit=5000,
+                available_limit=5000,
+            )
+
+        def update_card_limit(self, payload):  # noqa: ANN001, ANN201
+            self.calls.append(("update_card_limit", payload.customer_id, payload.new_limit))
+            self.last_trace = {
+                "tool": "update_card_limit",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 4,
+            }
+            return {"card_limit": payload.new_limit, "available_limit": payload.new_limit}
+
+        def create_pix(self, payload):  # noqa: ANN001, ANN201
+            self.calls.append(("create_pix", payload.customer_id, payload.amount))
+            self.last_trace = {
+                "tool": "create_pix",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 5,
+            }
+            return {"balance": 25000 - payload.amount, "status": "SUCCESS"}
+
+    gateway = RecordingWriteGateway()
+    test_harness = DemoHarness(router=DeterministicPlanner(), internal_systems=gateway)
+
+    limit_checkpoint = test_harness.handle_message(
+        ChatRequest(
+            session_id="mcp-limit-write",
+            customer_id="123",
+            message="Aumente meu limite para R$ 10.000",
+        )
+    )
+    assert limit_checkpoint["requires_confirmation"] is True
+    assert gateway.calls == [("get_card_limit", "123")]
+
+    limit_result = test_harness.handle_message(
+        ChatRequest(session_id="mcp-limit-write", customer_id="123", message="confirmo")
+    )
+    assert gateway.calls[-1] == ("update_card_limit", "123", 10000.0)
+    assert limit_result["observability"]["mcp"][0]["tool"] == "update_card_limit"
+
+    pix_checkpoint = test_harness.handle_message(
+        ChatRequest(
+            session_id="mcp-pix-write",
+            customer_id="123",
+            message="Faça um Pix de R$ 6.000 para a chave qa@example.com",
+        )
+    )
+    assert pix_checkpoint["requires_confirmation"] is True
+    assert not any(call[0] == "create_pix" for call in gateway.calls)
+
+    pix_result = test_harness.handle_message(
+        ChatRequest(session_id="mcp-pix-write", customer_id="123", message="confirmo")
+    )
+    assert gateway.calls[-1] == ("create_pix", "123", 6000.0)
+    assert pix_result["observability"]["mcp"][0]["tool"] == "create_pix"
 
 
 def test_mcp_gateway_failure_is_controlled_and_does_not_trace_credentials(monkeypatch) -> None:  # noqa: ANN001

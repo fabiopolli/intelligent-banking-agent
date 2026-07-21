@@ -95,9 +95,15 @@ class CoreBankingNode:
 
 
 class TransactionNode:
-    def __init__(self, response_builder: ResponseBuilder, rbac_service: RBACService) -> None:
+    def __init__(
+        self,
+        response_builder: ResponseBuilder,
+        rbac_service: RBACService,
+        internal_systems: InternalSystemsGateway,
+    ) -> None:
         self._response_builder = response_builder
         self._rbac_service = rbac_service
+        self._internal_systems = internal_systems
 
     def create_checkpoint(self, session_id: str, pix_request: PixCreateRequest | None = None) -> HarnessResponse:
         return self._create_checkpoint(session_id, pix_request)
@@ -114,12 +120,14 @@ class TransactionNode:
 
     @traceable(name="PIX Tool", run_type="tool")
     def _execute_pix(self, session_id: str, pix_request: PixCreateRequest) -> HarnessResponse:
-        result = mock_bank_service.create_pix(pix_request)
-        return self._response_builder.transaction_success(
+        result = self._internal_systems.create_pix(pix_request)
+        response = self._response_builder.transaction_success(
             session_id,
             float(result["balance"]),
             _pix_details(pix_request),
         )
+        response.observability = self._tool_observability()
+        return response
 
     def resume_pix(
         self,
@@ -138,17 +146,29 @@ class TransactionNode:
         )
 
     def execute_limit_update(self, session_id: str, operation: PendingLimitOperation) -> HarnessResponse:
-        result = mock_bank_service.update_card_limit(
+        result = self._internal_systems.update_card_limit(
             CardLimitUpdateRequest(
                 customer_id=operation.customer_id,
                 new_limit=operation.requested_limit,
             )
         )
-        return self._response_builder.limit_update_success(
+        response = self._response_builder.limit_update_success(
             session_id,
             float(result["card_limit"]),
             float(result["available_limit"]),
         )
+        response.observability = self._tool_observability()
+        return response
+
+    def get_limit_profile(self, customer_id: str):  # noqa: ANN201
+        return self._internal_systems.get_card_limit(customer_id)
+
+    def _tool_observability(self) -> dict:
+        trace = dict(self._internal_systems.last_trace)
+        return {
+            "tools_called": [f"{trace.get('transport')}.{trace.get('tool')}"],
+            "mcp": [trace] if trace.get("transport") == "mcp-streamable-http" else [],
+        }
 
 
 class FaqNode:
@@ -199,7 +219,7 @@ class DemoOrchestrator:
             rbac_service,
             systems,
         )
-        self._transaction = TransactionNode(response_builder, rbac_service)
+        self._transaction = TransactionNode(response_builder, rbac_service, systems)
         self._faq = FaqNode(response_builder, systems)
 
     def emergency(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
@@ -227,6 +247,9 @@ class DemoOrchestrator:
 
     def limit_update_execute(self, session_id: str, operation: PendingLimitOperation) -> HarnessResponse:
         return self._transaction.execute_limit_update(session_id, operation)
+
+    def get_limit_profile(self, customer_id: str):  # noqa: ANN201
+        return self._transaction.get_limit_profile(customer_id)
 
     def faq_fast_path(self, payload: ChatRequest) -> HarnessResponse:
         return self._faq.handle(payload)
