@@ -7,7 +7,9 @@ from app.services.harness import DemoHarness
 from app.security.identity import identity_service
 from app.security.guardrails import GuardrailsService
 from app.security.target_resolution import target_customer_resolver
+from app.security.request_credentials import trusted_auth_token_scope
 from app.services.audit_log import AuditExecutionContext, audit_execution_scope, audit_log_service
+from app.services.internal_systems import InternalSystemsUnavailable
 
 router = APIRouter(tags=["inbound"])
 harness = DemoHarness()
@@ -31,11 +33,12 @@ def app_chat(payload: ChatRequest, x_demo_auth_token: str | None = Header(defaul
         principal = identity_service.resolve_principal(x_demo_auth_token)
         if ingress_guardrails.contains_sensitive_credential(payload.message):
             trusted_payload = payload.model_copy(update={"role": principal.role})
-            return harness.handle_message(
-                trusted_payload,
-                auth=principal,
-                request_started_at=request_started_at,
-            )
+            with trusted_auth_token_scope(x_demo_auth_token):
+                return harness.handle_message(
+                    trusted_payload,
+                    auth=principal,
+                    request_started_at=request_started_at,
+                )
         target_customer_id = target_customer_resolver.resolve(payload.message, payload.customer_id)
         principal = identity_service.authenticate(x_demo_auth_token, target_customer_id)
         trusted_payload = payload.model_copy(
@@ -45,11 +48,12 @@ def app_chat(payload: ChatRequest, x_demo_auth_token: str | None = Header(defaul
                 "message": target_customer_resolver.remove_reference(payload.message),
             }
         )
-        return harness.handle_message(
-            trusted_payload,
-            auth=principal,
-            request_started_at=request_started_at,
-        )
+        with trusted_auth_token_scope(x_demo_auth_token):
+            return harness.handle_message(
+                trusted_payload,
+                auth=principal,
+                request_started_at=request_started_at,
+            )
     except PermissionError as exc:
         if principal is not None:
             with audit_execution_scope(
@@ -71,6 +75,11 @@ def app_chat(payload: ChatRequest, x_demo_auth_token: str | None = Header(defaul
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except InternalSystemsUnavailable as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Sistema bancario interno temporariamente indisponivel. Tente novamente em instantes.",
+        ) from exc
 
 
 @router.post("/channels/whatsapp/webhook")

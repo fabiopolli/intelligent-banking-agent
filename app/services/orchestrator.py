@@ -12,6 +12,7 @@ from app.services.knowledge_base import GroundedKnowledgeService, knowledge_serv
 from app.services.mock_bank import mock_bank_service
 from app.services.observability import traceable
 from app.services.response_builder import ResponseBuilder
+from app.services.internal_systems import InternalSystemsGateway, build_internal_systems_gateway
 
 
 @dataclass
@@ -48,9 +49,15 @@ class EmergencyNode:
 
 
 class CoreBankingNode:
-    def __init__(self, response_builder: ResponseBuilder, rbac_service: RBACService) -> None:
+    def __init__(
+        self,
+        response_builder: ResponseBuilder,
+        rbac_service: RBACService,
+        internal_systems: InternalSystemsGateway,
+    ) -> None:
         self._response_builder = response_builder
         self._rbac_service = rbac_service
+        self._internal_systems = internal_systems
 
     def handle_limit(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         return self._handle_limit(payload, auth)
@@ -58,11 +65,13 @@ class CoreBankingNode:
     @traceable(name="Core Banking Limit Node", run_type="tool")
     def _handle_limit(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._rbac_service.validate_owner_access(auth, payload.customer_id, "read")
-        profile = mock_bank_service.get_customer_profile(payload.customer_id)
-        return self._response_builder.limit(
+        profile = self._internal_systems.get_card_limit(payload.customer_id)
+        response = self._response_builder.limit(
             payload.session_id,
             CustomerSupportService.require_profile(profile),
         )
+        response.observability = self._tool_observability()
+        return response
 
     def handle_balance(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         return self._handle_balance(payload, auth)
@@ -70,11 +79,20 @@ class CoreBankingNode:
     @traceable(name="Core Banking Balance Node", run_type="tool")
     def _handle_balance(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._rbac_service.validate_owner_access(auth, payload.customer_id, "read")
-        balance = mock_bank_service.get_balance(payload.customer_id)
-        return self._response_builder.balance(
+        balance = self._internal_systems.get_account_balance(payload.customer_id)
+        response = self._response_builder.balance(
             payload.session_id,
             CustomerSupportService.require_balance(balance),
         )
+        response.observability = self._tool_observability()
+        return response
+
+    def _tool_observability(self) -> dict:
+        trace = dict(self._internal_systems.last_trace)
+        return {
+            "tools_called": [f"{trace.get('transport')}.{trace.get('tool')}"],
+            "mcp": [trace] if trace.get("transport") == "mcp-streamable-http" else [],
+        }
 
 
 class TransactionNode:
@@ -163,9 +181,14 @@ class DemoOrchestrator:
         response_builder: ResponseBuilder,
         rbac_service: RBACService,
         grounded_knowledge: GroundedKnowledgeService | None = None,
+        internal_systems: InternalSystemsGateway | None = None,
     ) -> None:
         self._emergency = EmergencyNode(response_builder, rbac_service)
-        self._core_banking = CoreBankingNode(response_builder, rbac_service)
+        self._core_banking = CoreBankingNode(
+            response_builder,
+            rbac_service,
+            internal_systems or build_internal_systems_gateway(),
+        )
         self._transaction = TransactionNode(response_builder, rbac_service)
         self._faq = FaqNode(response_builder, grounded_knowledge or knowledge_service)
 

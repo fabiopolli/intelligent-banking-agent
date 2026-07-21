@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     docker_model_runner_model: str = "gemma4:latest"
     mcp_server_host: str = "0.0.0.0"
     mcp_server_port: int = Field(default=8600, ge=1, le=65535)
+    mcp_client_url: str = "http://localhost:8600/mcp"
+    internal_systems_transport: str = "local"
     internal_tool_api_key: str = Field(default="demo-internal-tool-key", min_length=8)
     demo_auth_required: bool = True
     demo_customer_token: str = Field(default="demo-customer-123-token", min_length=12)

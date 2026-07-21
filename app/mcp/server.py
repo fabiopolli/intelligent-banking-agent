@@ -83,10 +83,29 @@ def get_card_limit(
     profile = _get_profile_from_api(auth_token, target_customer_id)
     return {
         "customer_id": profile["customer_id"],
+        "name": profile["name"],
+        "segment": profile["segment"],
         "card_limit": profile["card_limit"],
         "available_limit": profile["available_limit"],
         "card_status": profile["card_status"],
     }
+
+
+@mcp.tool()
+def get_account_balance(
+    auth_token: str,
+    target_customer_id: str,
+) -> dict:
+    """Read an account balance after native RBAC validation."""
+
+    identity_service.authenticate(auth_token, target_customer_id)
+    response = httpx.get(
+        f"{settings.api_internal_base_url}/mcp/accounts/balance/{target_customer_id}",
+        headers={"X-Internal-Tool-Key": settings.internal_tool_api_key},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 @mcp.tool()

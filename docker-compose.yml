@@ -39,6 +39,8 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       DOCKER_MODEL_RUNNER_BASE_URL: ${COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL:-http://host.docker.internal:12434/engines/v1}
       DOCKER_MODEL_RUNNER_MODEL: ${DOCKER_MODEL_RUNNER_MODEL:-gemma4:latest}
+      INTERNAL_SYSTEMS_TRANSPORT: mcp
+      MCP_CLIENT_URL: http://mcp-server:8600/mcp
     extra_hosts:
       - "model-runner.docker.internal:host-gateway"
     ports:
@@ -46,6 +48,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mcp-server:
+        condition: service_started
 
   mcp-server:
     build:

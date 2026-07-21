@@ -5,6 +5,16 @@ class McpToolRegistry:
     def list_tools(self) -> list[dict]:
         return [
             {
+                "name": "get_account_balance",
+                "kind": "tool",
+                "transport": "mcp-and-internal-rest",
+                "path": "/v1/mcp/accounts/balance/{customer_id}",
+                "requires_rbac": True,
+                "requires_hitl": False,
+                "audited": False,
+                "description": "Consulta saldo pelo gateway MCP apos autorizacao nativa do Harness.",
+            },
+            {
                 "name": "get_customer_profile",
                 "kind": "tool",
                 "transport": "mcp-and-internal-rest",

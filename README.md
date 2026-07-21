@@ -323,7 +323,11 @@ O servidor MCP real publica `get_customer_profile`, `get_card_limit`, `update_ca
 `create_pix`, alem das tools de knowledge e Harness. As duas tools de escrita apenas iniciam o
 workflow controlado: elegibilidade, politica, confirmacao/HITL e auditoria continuam obrigatorias.
 
-Nesta demo, os tools MCP-style usam REST interno como transporte local. Isso nao muda a arquitetura: MCP e o contrato de tools/resources para o agente; REST e apenas o adapter interno simples usado para executar e demonstrar essas tools localmente. Um servidor MCP real pode substituir esse adapter preservando o Harness, RBAC, HITL, auditoria e os nomes das tools.
+No Compose, leituras de saldo, perfil e limite usam um cliente MCP Streamable HTTP real no caminho do
+chat. O servidor MCP valida a identidade nativamente e acessa os endpoints FastAPI protegidos, que
+representam adapters dos sistemas bancarios simulados. Em pytest/local isolado, um adapter deterministico
+implementa o mesmo contrato. Se MCP falhar no modo Compose, a leitura retorna indisponibilidade controlada;
+nao existe fallback silencioso para acesso direto.
 
 Para rodar o servidor MCP real fora do Compose:
 
@@ -387,7 +391,7 @@ X-Internal-Tool-Key: demo-internal-tool-key
 Arquitetura intencional:
 
 ```text
-LLM -> Harness -> RBAC / HITL / Audit / Guardrails -> MCP-style tool boundary -> mocks internos
+LLM -> Harness -> RBAC / HITL / Audit / Guardrails -> MCP real -> API interna -> mocks internos
 ```
 
 O PDF de tarifas nao vira uma tool transacional. Ele e tratado como resource documental oficial (`itau://knowledge/tariff-pdf`) ingerido pelo RAG e exposto no registry MCP-style. Tools como `search_tariff_knowledge` consultam esse resource; tools como `create_pix` continuam passando por RBAC, HITL e auditoria.

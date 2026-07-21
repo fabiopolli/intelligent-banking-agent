@@ -22,6 +22,7 @@ from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, P
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
 from app.services.social_conversation import social_conversation_service
+from app.services.internal_systems import InternalSystemsGateway
 from app.services.audit_log import (
     AuditExecutionContext,
     audit_execution_scope,
@@ -37,12 +38,17 @@ class DemoHarness:
         rbac_service: RBACService | None = None,
         guardrails_service: GuardrailsService | None = None,
         checkpoints: CheckpointStore | None = None,
+        internal_systems: InternalSystemsGateway | None = None,
     ) -> None:
         self._router = router or build_agent_planner()
         self._response_builder = response_builder or ResponseBuilder()
         self._rbac_service = rbac_service or RBACService()
         self._guardrails_service = guardrails_service or GuardrailsService()
-        self._orchestrator = DemoOrchestrator(self._response_builder, self._rbac_service)
+        self._orchestrator = DemoOrchestrator(
+            self._response_builder,
+            self._rbac_service,
+            internal_systems=internal_systems,
+        )
         self._workflow_graph = DemoWorkflowGraph(self._orchestrator)
         self._checkpoints = checkpoints or checkpoint_store
 

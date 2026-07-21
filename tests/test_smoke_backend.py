@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -26,6 +27,10 @@ from app.services.audit_log import (
     audit_execution_scope,
     audit_log_service,
 )
+from app.services.agent_planner import DeterministicPlanner
+from app.services.internal_systems import InternalSystemsUnavailable, McpInternalSystemsGateway
+from app.security.request_credentials import trusted_auth_token_scope
+from app.schemas.outbound import BalanceResponse, CustomerProfileResponse
 from scripts.smoke_mcp_client import run_smoke
 
 
@@ -75,6 +80,105 @@ def test_chat_balance_smoke() -> None:
     trace_response = client.get("/v1/mcp/trace/sess-1", headers=INTERNAL_TOOL_HEADERS)
     assert trace_response.status_code == 200
     assert trace_response.json()["trace"]["route"] == "core_banking"
+
+
+def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -> None:  # noqa: ANN001
+    class RecordingGateway:
+        def __init__(self) -> None:
+            self.calls = []
+            self.last_trace = {}
+
+        def get_customer_profile(self, customer_id: str):  # noqa: ANN201
+            self.calls.append(("get_customer_profile", customer_id))
+            self.last_trace = {
+                "tool": "get_customer_profile",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 2,
+            }
+            return CustomerProfileResponse(
+                customer_id=customer_id,
+                name="Gateway Customer",
+                segment="Demo",
+                card_status="ACTIVE",
+                card_limit=1000,
+                available_limit=1000,
+            )
+
+        def get_account_balance(self, customer_id: str):  # noqa: ANN201
+            self.calls.append(("get_account_balance", customer_id))
+            self.last_trace = {
+                "tool": "get_account_balance",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 3,
+            }
+            return BalanceResponse(customer_id=customer_id, balance=4321)
+
+        def get_card_limit(self, customer_id: str):  # noqa: ANN201
+            self.calls.append(("get_card_limit", customer_id))
+            self.last_trace = {
+                "tool": "get_card_limit",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 4,
+            }
+            return CustomerProfileResponse(
+                customer_id=customer_id,
+                name="Gateway Customer",
+                segment="Demo",
+                card_status="ACTIVE",
+                card_limit=1000,
+                available_limit=1000,
+            )
+
+    gateway = RecordingGateway()
+    monkeypatch.setattr(
+        mock_bank_service,
+        "get_balance",
+        lambda customer_id: (_ for _ in ()).throw(AssertionError("direct balance access")),
+    )
+
+    result = DemoHarness(
+        router=DeterministicPlanner(),
+        internal_systems=gateway,
+    ).handle_message(
+        ChatRequest(session_id="mcp-gateway-read", customer_id="123", message="Qual meu saldo?")
+    )
+
+    assert gateway.calls == [("get_account_balance", "123")]
+    assert "R$ 4321.00" in result["message"]
+    assert result["observability"]["tools_called"] == [
+        "mcp-streamable-http.get_account_balance"
+    ]
+    assert result["observability"]["mcp"][0]["status"] == "success"
+
+    limit_result = DemoHarness(
+        router=DeterministicPlanner(),
+        internal_systems=gateway,
+    ).handle_message(
+        ChatRequest(session_id="mcp-gateway-limit", customer_id="123", message="Qual meu limite?")
+    )
+    assert gateway.calls[-1] == ("get_card_limit", "123")
+    assert limit_result["observability"]["tools_called"] == [
+        "mcp-streamable-http.get_card_limit"
+    ]
+
+
+def test_mcp_gateway_failure_is_controlled_and_does_not_trace_credentials(monkeypatch) -> None:  # noqa: ANN001
+    gateway = McpInternalSystemsGateway("http://mcp.invalid/mcp")
+
+    async def fail(tool, arguments):  # noqa: ANN001, ANN202
+        raise TimeoutError("MCP unavailable")
+
+    monkeypatch.setattr(gateway, "_call_tool_async", fail)
+    with trusted_auth_token_scope("secret-demo-token"):
+        with pytest.raises(InternalSystemsUnavailable):
+            gateway.get_account_balance("123")
+
+    assert gateway.last_trace["status"] == "failed"
+    assert gateway.last_trace["error_type"] == "TimeoutError"
+    assert "secret-demo-token" not in str(gateway.last_trace)
 
 
 def test_demo_login_returns_identity_derived_from_token(monkeypatch) -> None:  # noqa: ANN001

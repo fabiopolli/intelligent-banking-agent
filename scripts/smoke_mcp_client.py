@@ -27,6 +27,7 @@ async def run_smoke(url: str) -> dict[str, Any]:
     assert "get_demo_status" in tool_names
     assert "get_customer_profile" in tool_names
     assert "get_card_limit" in tool_names
+    assert "get_account_balance" in tool_names
     assert "update_card_limit" in tool_names
     assert "create_pix" in tool_names
     assert "itau://mcp/tools" in resource_uris
