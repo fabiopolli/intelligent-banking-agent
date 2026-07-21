@@ -58,24 +58,32 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
         return
 
     route = trace.get("route", "unknown")
-    requires_confirmation = "Yes" if trace.get("requires_confirmation") else "No"
+    hitl = trace_payload.get("hitl") or {}
+    hitl_status = {
+        "awaiting_confirmation": "Awaiting",
+        "completed": "Completed",
+        "failed": "Failed",
+    }.get(hitl.get("status"), "Not used")
     source_count = len(trace.get("grounding_sources") or [])
     observability = trace.get("observability") or {}
     tools_called = observability.get("tools_called") or []
     llm = observability.get("llm") or {}
     planner = observability.get("planner") or {}
 
-    first, second, third = st.columns(3)
+    first, second = st.columns(2)
     first.metric("Route", route)
-    second.metric("HITL", requires_confirmation)
+    second.metric("HITL", hitl_status)
+    third, fourth = st.columns(2)
     third.metric("Sources", source_count)
-    fourth, fifth, sixth = st.columns(3)
     fourth.metric("Tools", len(tools_called))
+    fifth, sixth = st.columns(2)
     fifth.metric("Planner", planner.get("provider") or "disabled")
     sixth.metric("Fallback", "Yes" if planner.get("fallback_used") else "No")
 
     pending = trace.get("pending_operation")
-    if pending:
+    if hitl.get("status") == "completed":
+        st.success("HITL completed after customer confirmation.")
+    elif pending:
         st.warning(f"Checkpoint pending: {pending}")
     elif route == "emergency":
         st.error("Emergency path executed.")
@@ -86,6 +94,12 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
 
     with st.expander("Trace payload", expanded=False):
         st.code(json.dumps(trace, indent=2, ensure_ascii=False), language="json")
+
+    if hitl.get("encountered"):
+        with st.expander("HITL lifecycle", expanded=True):
+            st.caption(f"Correlation ID: {hitl.get('correlation_id')}")
+            st.caption(f"Duration: {hitl.get('duration_ms')} ms")
+            st.code(json.dumps(hitl.get("events") or [], indent=2, ensure_ascii=False), language="json")
 
     with st.expander("Observability: tools, prompt, context and tokens", expanded=False):
         st.markdown("**Agent planner**")

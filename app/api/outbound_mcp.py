@@ -61,9 +61,12 @@ def get_audit_events(customer_id: str) -> list[AuditEventResponse]:
 @router.get("/mcp/trace/{session_id}")
 def get_last_trace(session_id: str) -> dict:
     trace = trace_store.get(session_id)
-    if trace is None:
-        return {"session_id": session_id, "trace": None}
-    return {"session_id": session_id, "trace": trace}
+    return {
+        "session_id": session_id,
+        "trace": trace,
+        "history": trace_store.history(session_id),
+        "hitl": trace_store.hitl_summary(session_id),
+    }
 
 
 @router.get("/mcp/observability/status")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from uuid import uuid5, NAMESPACE_URL
 
 from app.config import settings
 from app.services.orchestrator import PendingLimitOperation, PendingPixOperation
@@ -18,6 +19,7 @@ class CheckpointStore:
             "customer_id": operation.customer_id,
             "amount": operation.amount,
             "destination_key": operation.destination_key,
+            "correlation_id": operation.correlation_id,
         }
         self._write_all(checkpoints)
 
@@ -29,6 +31,7 @@ class CheckpointStore:
             customer_id=str(raw_operation["customer_id"]),
             amount=float(raw_operation["amount"]),
             destination_key=str(raw_operation["destination_key"]),
+            correlation_id=self._pix_correlation_id(session_id, raw_operation),
         )
 
     def consume_pending_pix(self, session_id: str) -> PendingPixOperation | None:
@@ -42,7 +45,19 @@ class CheckpointStore:
             customer_id=str(raw_operation["customer_id"]),
             amount=float(raw_operation["amount"]),
             destination_key=str(raw_operation["destination_key"]),
+            correlation_id=self._pix_correlation_id(session_id, raw_operation),
         )
+
+    @staticmethod
+    def _pix_correlation_id(session_id: str, raw_operation: dict) -> str:
+        stored = str(raw_operation.get("correlation_id") or "").strip()
+        if stored:
+            return stored
+        legacy_key = (
+            f"case-itau:pix:{session_id}:{raw_operation.get('customer_id')}:"
+            f"{raw_operation.get('amount')}:{raw_operation.get('destination_key')}"
+        )
+        return str(uuid5(NAMESPACE_URL, legacy_key))
 
     def save_pending_limit(self, session_id: str, operation: PendingLimitOperation) -> None:
         checkpoints = self._read_all()

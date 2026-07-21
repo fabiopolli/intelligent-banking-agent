@@ -59,6 +59,7 @@ class DemoWorkflowGraph:
                 "customer_id": pending_operation.customer_id,
                 "amount": pending_operation.amount,
                 "destination_key": pending_operation.destination_key,
+                "correlation_id": pending_operation.correlation_id,
             }
         return {
             "payload": payload,
@@ -149,6 +150,7 @@ class DemoWorkflowGraph:
                 customer_id=str(state["pending_operation"]["customer_id"]),
                 amount=float(state["pending_operation"]["amount"]),
                 destination_key=str(state["pending_operation"]["destination_key"]),
+                correlation_id=str(state["pending_operation"].get("correlation_id") or ""),
             )
             response = self._orchestrator.transaction_resume(
                 state["payload"],

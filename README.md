@@ -414,7 +414,9 @@ Checklist rápido:
 ### Observabilidade Local da Demo
 
 - o chat do cliente fica separado do painel técnico
-- o último trace do Harness pode ser consultado pelo painel via `/v1/mcp/trace/{session_id}`
+- o último trace e o histórico da sessão podem ser consultados pelo painel via `/v1/mcp/trace/{session_id}`
+- PIX de alto valor preserva os eventos HITL `created`, `resumed` e `completed` com um único
+  `correlation_id`, timestamps e duração do ciclo
 - spans LangSmith opcionais instrumentam Harness, roteamento, nós, PIX, HITL e RAG
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
@@ -449,15 +451,16 @@ Checklist rápido:
 
 ## Próximos Passos
 
-O backend funcional ainda possui limites conhecidos: o trace guarda somente a ultima resposta da
-sessao, a identidade de demo ainda nao oferece login confiavel por perfil e a auditoria critica fica
-em memoria ate o reinicio da API. A configuracao de modelos tambem precisa ser consolidada antes de
-ser tratada como politica final.
+O backend funcional ainda possui limites conhecidos: a identidade de demo ainda nao oferece login
+confiavel por perfil e a auditoria critica fica em memoria ate o reinicio da API. A configuracao de
+modelos tambem precisa ser consolidada antes de ser tratada como politica final. O histórico HITL de
+PIX já é preservado em memória durante a sessão da API; persistência de traces após restart permanece
+fora deste slice.
 
 Ordem aprovada para concluir a entrega:
 
 1. criar `main` a partir do commit-base `02bd31a`, mantendo `feat/tech-lead-planning` como origem do PR;
-2. preservar no backend toda a passagem HITL de Pix: checkpoint, retomada e conclusao;
+2. preservar no backend toda a passagem HITL de Pix: checkpoint, retomada e conclusao — concluído;
 3. adicionar login simulado confiavel para cliente, gerente e administrador e provar RBAC para terceiros;
 4. persistir auditoria critica append-only no PostgreSQL, com hash, idempotencia e bloqueio de alteracao/exclusao;
 5. padronizar OpenAI `gpt-5.4` como primario, Gemma4 como fallback documental e resposta deterministica final;

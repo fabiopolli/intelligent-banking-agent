@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from uuid import uuid4
 
 from app.config import settings
 from app.services.agent_planner import Planner, build_agent_planner
@@ -108,15 +109,26 @@ class DemoHarness:
             if policy_response is not None:
                 return policy_response
             if pix_request.amount >= settings.hitl_pix_threshold:
+                correlation_id = str(uuid4())
                 self._checkpoints.save_pending_pix(
                     payload.session_id,
                     PendingPixOperation(
                         customer_id=payload.customer_id,
                         amount=pix_request.amount,
                         destination_key=pix_request.destination_key,
+                        correlation_id=correlation_id,
                     ),
                 )
-                return self._workflow_graph.checkpoint(payload.session_id, pix_request)
+                response = self._workflow_graph.checkpoint(payload.session_id, pix_request)
+                response.observability = {
+                    **response.observability,
+                    "hitl": {
+                        "correlation_id": correlation_id,
+                        "status": "awaiting_confirmation",
+                        "events": [{"type": "created"}],
+                    },
+                }
+                return response
             return self._workflow_graph.invoke(payload, auth, route, pix_request=pix_request)
 
         if route == "core_banking_limit" and (
@@ -136,6 +148,14 @@ class DemoHarness:
                 "transaction",
                 pending_operation=pending,
             )
+            response.observability = {
+                **response.observability,
+                "hitl": {
+                    "correlation_id": pending.correlation_id,
+                    "status": "completed",
+                    "events": [{"type": "resumed"}, {"type": "completed"}],
+                },
+            }
             self._checkpoints.consume_pending_pix(payload.session_id)
             return response
 

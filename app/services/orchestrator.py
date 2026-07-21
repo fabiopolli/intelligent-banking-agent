@@ -19,6 +19,7 @@ class PendingPixOperation:
     customer_id: str
     amount: float
     destination_key: str
+    correlation_id: str = ""
 
 
 @dataclass

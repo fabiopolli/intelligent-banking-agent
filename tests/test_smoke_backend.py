@@ -244,6 +244,26 @@ def test_pix_requires_confirmation_and_updates_balance_after_resume() -> None:
     assert resume_body["route"] == "transaction"
     assert resume_body["balance"] == 18000.0
 
+    trace_response = client.get("/v1/mcp/trace/sess-3", headers=INTERNAL_TOOL_HEADERS)
+    assert trace_response.status_code == 200
+    trace_payload = trace_response.json()
+    assert trace_payload["trace"]["balance"] == 18000.0
+    assert len(trace_payload["history"]) == 2
+    assert trace_payload["hitl"]["encountered"] is True
+    assert trace_payload["hitl"]["status"] == "completed"
+    assert trace_payload["hitl"]["created_count"] == 1
+    assert trace_payload["hitl"]["resumed_count"] == 1
+    assert trace_payload["hitl"]["duration_ms"] >= 0
+    assert [event["type"] for event in trace_payload["hitl"]["events"]] == [
+        "created",
+        "resumed",
+        "completed",
+    ]
+    correlation_ids = {
+        event["correlation_id"] for event in trace_payload["hitl"]["events"]
+    }
+    assert len(correlation_ids) == 1
+
 
 def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation() -> None:
     checkpoint_response = client.post(
