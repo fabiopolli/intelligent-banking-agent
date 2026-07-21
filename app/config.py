@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     prompt_root: str = "prompts"
     prompt_profile: str = "banking-v1"
     knowledge_store: str = "local"
+    audit_store: str = "memory"
     database_url: str = "postgresql://itau:itau@localhost:5432/itau_agent"
     knowledge_embedding_dimensions: int = Field(default=64, ge=16, le=2048)
     openai_api_key: str | None = None

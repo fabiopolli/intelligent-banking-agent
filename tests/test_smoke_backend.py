@@ -21,6 +21,11 @@ from app.services.knowledge.llm import (
 from app.services.knowledge.service import GroundedKnowledgeService
 from app.services.mock_bank import mock_bank_service
 from app.services.orchestrator import PendingPixOperation
+from app.services.audit_log import (
+    AuditExecutionContext,
+    audit_execution_scope,
+    audit_log_service,
+)
 from scripts.smoke_mcp_client import run_smoke
 
 
@@ -1051,8 +1056,51 @@ def test_pix_emits_append_only_audit_event() -> None:
     assert audit_body[-1]["event_type"] == "PIX"
     assert audit_body[-1]["payload"]["amount"] == 100.0
     assert audit_body[-1]["payload"]["destination_key"] == "maria@example.com"
-    assert audit_body[-1]["user"] == "123"
+    assert audit_body[-1]["user"] == "local-demo-customer-123"
+    assert audit_body[-1]["customer_id"] == "123"
+    assert audit_body[-1]["actor_role"] == "customer"
+    assert audit_body[-1]["session_id"] == "sess-7"
     assert audit_body[-1]["action"] == "PIX"
     assert audit_body[-1]["amount"] == 100.0
     assert audit_body[-1]["timestamp"]
     assert len(audit_body[-1]["event_hash"]) == 64
+
+
+def test_audit_context_idempotency_and_integrity() -> None:
+    context = AuditExecutionContext(
+        actor_id="manager-demo",
+        actor_role="manager",
+        customer_id="456",
+        session_id="audit-session",
+        trace_id="audit-trace",
+    )
+    with audit_execution_scope(context):
+        first = audit_log_service.append(
+            "456",
+            "BALANCE_ACCESS",
+            {"result": "allowed"},
+            status="executed",
+            idempotency_key="audit-idempotent-1",
+        )
+        duplicate = audit_log_service.append(
+            "456",
+            "BALANCE_ACCESS",
+            {"result": "allowed"},
+            status="executed",
+            idempotency_key="audit-idempotent-1",
+        )
+
+    assert first["event_id"] == duplicate["event_id"]
+    assert first["actor_id"] == "manager-demo"
+    assert first["actor_role"] == "manager"
+    assert first["session_id"] == "audit-session"
+    assert first["trace_id"] == "audit-trace"
+    assert audit_log_service.verify_integrity() == {
+        "valid": True,
+        "event_count": 1,
+        "failed_event_id": None,
+    }
+    audit_log_service._events[0]["payload"]["result"] = "tampered"  # noqa: SLF001
+    tampered = audit_log_service.verify_integrity()
+    assert tampered["valid"] is False
+    assert tampered["failed_event_id"] == first["event_id"]

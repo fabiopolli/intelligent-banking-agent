@@ -13,6 +13,7 @@ from app.services.mcp_registry import mcp_tool_registry
 from app.services.observability import langsmith_status
 from app.services.knowledge_base import knowledge_service
 from app.services.trace_store import trace_store
+from app.services.audit_log import audit_log_service
 
 router = APIRouter(tags=["outbound-mocks"], dependencies=[Depends(require_internal_tool_key)])
 
@@ -56,6 +57,11 @@ def create_pix(payload: PixCreateRequest) -> dict:
 @router.get("/mcp/audit/{customer_id}", response_model=list[AuditEventResponse])
 def get_audit_events(customer_id: str) -> list[AuditEventResponse]:
     return mock_bank_service.get_audit_events(customer_id)
+
+
+@router.get("/mcp/audit-integrity")
+def get_audit_integrity() -> dict:
+    return audit_log_service.verify_integrity()
 
 
 @router.get("/mcp/trace/{session_id}")

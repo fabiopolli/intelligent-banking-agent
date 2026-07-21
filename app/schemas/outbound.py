@@ -28,8 +28,15 @@ class PixCreateRequest(BaseModel):
 
 class AuditEventResponse(BaseModel):
     event_id: str
+    idempotency_key: str | None = None
+    actor_id: str | None = None
+    actor_role: str | None = None
     customer_id: str
+    session_id: str | None = None
+    trace_id: str | None = None
     event_type: str
+    status: str = "executed"
+    reason: str | None = None
     timestamp: str
     payload: dict
     user: str

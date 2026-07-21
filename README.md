@@ -365,6 +365,7 @@ Endpoints tecnicos protegidos:
 - `POST /v1/mcp/cards/limit`
 - `POST /v1/mcp/payments/pix`
 - `GET /v1/mcp/audit/{customer_id}`
+- `GET /v1/mcp/audit-integrity`
 - `GET /v1/mcp/trace/{session_id}`
 - `GET /v1/mcp/knowledge/status`
 - `GET /v1/mcp/observability/status`
@@ -451,16 +452,21 @@ Checklist rápido:
 
 ### Auditoria Critica
 
-- toda acao critica gera evento append-only
+- no Docker Compose, toda acao critica e persistida em PostgreSQL na tabela append-only
+  `critical_audit_events`; testes locais/CI usam o adapter em memoria para permanecerem deterministas
 - `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED` ficam visiveis no painel tecnico
-- eventos incluem `user`, `action`, `amount`, `timestamp`, payload original e hash encadeado
-- o hash encadeado (`previous_hash` e `event_hash`) demonstra imutabilidade sequencial para a demo
+- eventos incluem ator e papel confiaveis, cliente-alvo, sessao/trace, acao, valor, status, motivo,
+  payload redigido, timestamp, chave de idempotencia e hash encadeado
+- o ciclo registra `requested`, `blocked`, `awaiting_hitl`, `confirmed`, `executed` e `failed` quando aplicavel
+- trigger no banco rejeita `UPDATE` e `DELETE`; `GET /v1/mcp/audit-integrity` verifica a cadeia formada por
+  `previous_hash` e `event_hash`
+- reiniciar a API nao remove os eventos armazenados no volume PostgreSQL
+- exportacao para armazenamento WORM/SIEM e uma evolucao de producao, nao uma capacidade implementada localmente
 
 ## Próximos Passos
 
-O backend funcional ainda possui limites conhecidos: a auditoria critica fica em memoria ate o
-reinicio da API e a configuracao de modelos precisa ser consolidada antes de ser tratada como politica
-final. O login confiável local é apenas um adapter de demonstração, não um provedor de identidade de
+O backend funcional ainda possui limites conhecidos: a configuracao de modelos precisa ser consolidada
+antes de ser tratada como politica final. O login confiável local é apenas um adapter de demonstração, não um provedor de identidade de
 produção. O histórico HITL de
 PIX já é preservado em memória durante a sessão da API; persistência de traces após restart permanece
 fora deste slice.
@@ -470,7 +476,7 @@ Ordem aprovada para concluir a entrega:
 1. criar `main` a partir do commit-base `02bd31a`, mantendo `feat/tech-lead-planning` como origem do PR;
 2. preservar no backend toda a passagem HITL de Pix: checkpoint, retomada e conclusao — concluído;
 3. adicionar login simulado confiavel para cliente, gerente e administrador e provar RBAC para terceiros — concluído;
-4. persistir auditoria critica append-only no PostgreSQL, com hash, idempotencia e bloqueio de alteracao/exclusao;
+4. persistir auditoria critica append-only no PostgreSQL, com hash, idempotencia e bloqueio de alteracao/exclusao — concluído;
 5. padronizar OpenAI `gpt-5.4` como primario, Gemma4 como fallback documental e resposta deterministica final;
 6. mover prompts internos para ingles, exigir saida pt-BR e tratar saudacoes/apresentacoes antes do RAG;
 7. medir separadamente latencia de frontend, API, roteamento, retrieval, provider e composicao;

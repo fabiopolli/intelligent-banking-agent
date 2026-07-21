@@ -20,6 +20,11 @@ from app.services.mock_bank import mock_bank_service
 from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, PendingPixOperation
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
+from app.services.audit_log import (
+    AuditExecutionContext,
+    audit_execution_scope,
+    audit_log_service,
+)
 
 
 class DemoHarness:
@@ -46,7 +51,16 @@ class DemoHarness:
             role="customer",
             scopes=("customer:self",),
         )
-        response = self._handle_message(payload, trusted_auth)
+        with audit_execution_scope(
+            AuditExecutionContext(
+                actor_id=trusted_auth.principal_id,
+                actor_role=trusted_auth.role,
+                customer_id=payload.customer_id,
+                session_id=payload.session_id,
+                trace_id=payload.session_id,
+            )
+        ):
+            response = self._handle_message(payload, trusted_auth)
         response_payload = response.model_dump()
         trace_store.record(payload.session_id, response_payload)
         return response_payload
@@ -119,8 +133,33 @@ class DemoHarness:
                     draft,
                 )
             self._checkpoints.consume_pix_draft(payload.session_id)
+            audit_request_key = (
+                f"pix:{payload.session_id}:{pix_request.amount}:"
+                f"{pix_request.destination_key}"
+            )
+            audit_log_service.append(
+                payload.customer_id,
+                "PIX",
+                {
+                    "amount": pix_request.amount,
+                    "destination_key": pix_request.destination_key,
+                },
+                status="requested",
+                idempotency_key=f"{audit_request_key}:requested",
+            )
             policy_response = self._validate_pix_policy(payload, pix_request)
             if policy_response is not None:
+                audit_log_service.append(
+                    payload.customer_id,
+                    "PIX",
+                    {
+                        "amount": pix_request.amount,
+                        "destination_key": pix_request.destination_key,
+                    },
+                    status="blocked",
+                    reason="pix_policy",
+                    idempotency_key=f"{audit_request_key}:blocked",
+                )
                 return policy_response
             if pix_request.amount >= settings.hitl_pix_threshold:
                 correlation_id = str(uuid4())
@@ -142,6 +181,16 @@ class DemoHarness:
                         "events": [{"type": "created"}],
                     },
                 }
+                audit_log_service.append(
+                    payload.customer_id,
+                    "PIX",
+                    {
+                        "amount": pix_request.amount,
+                        "destination_key": pix_request.destination_key,
+                    },
+                    status="awaiting_hitl",
+                    idempotency_key=f"pix:{correlation_id}:awaiting_hitl",
+                )
                 return response
             return self._workflow_graph.invoke(payload, auth, route, pix_request=pix_request)
 
@@ -156,12 +205,30 @@ class DemoHarness:
     def _resume_pending_operation(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         pending = self._checkpoints.get_pending_pix(payload.session_id)
         if pending is not None:
-            response = self._workflow_graph.invoke(
-                payload,
-                auth,
-                "transaction",
-                pending_operation=pending,
+            audit_log_service.append(
+                pending.customer_id,
+                "PIX",
+                {"amount": pending.amount, "destination_key": pending.destination_key},
+                status="confirmed",
+                idempotency_key=f"pix:{pending.correlation_id}:confirmed",
             )
+            try:
+                response = self._workflow_graph.invoke(
+                    payload,
+                    auth,
+                    "transaction",
+                    pending_operation=pending,
+                )
+            except Exception as exc:
+                audit_log_service.append(
+                    pending.customer_id,
+                    "PIX",
+                    {"amount": pending.amount, "destination_key": pending.destination_key},
+                    status="failed",
+                    reason=type(exc).__name__,
+                    idempotency_key=f"pix:{pending.correlation_id}:failed",
+                )
+                raise
             response.observability = {
                 **response.observability,
                 "hitl": {
