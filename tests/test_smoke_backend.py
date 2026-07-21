@@ -195,7 +195,7 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
     )
 
     assert gateway.calls == [("get_account_balance", "123")]
-    assert "R$ 4321.00" in result["message"]
+    assert "R$ 4.321,00" in result["message"]
     assert result["observability"]["tools_called"] == [
         "mcp-streamable-http.get_account_balance"
     ]
@@ -389,7 +389,7 @@ def test_manager_can_read_natural_language_target_but_cannot_write(monkeypatch) 
     )
 
     assert balance_response.status_code == 200
-    assert "R$ 8000.00" in balance_response.json()["message"]
+    assert "R$ 8.000,00" in balance_response.json()["message"]
     assert pix_response.status_code == 403
     assert "customer:any:write" in pix_response.json()["detail"]
     assert mock_bank_service.get_balance("456").balance == 8000.0
@@ -724,6 +724,40 @@ def test_high_value_pix_with_insufficient_balance_is_rejected_after_confirmation
     balance_response = client.get("/v1/mcp/accounts/balance/123", headers=INTERNAL_TOOL_HEADERS)
     assert balance_response.status_code == 200
     assert balance_response.json()["balance"] == 25000.0
+
+
+def test_customer_can_reject_pix_without_executing_transfer() -> None:
+    checkpoint_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-rejected",
+            "customer_id": "123",
+            "message": "Quero fazer um pix de 7000 para chave pix maria@example.com",
+        },
+    )
+    assert checkpoint_response.status_code == 200
+    assert checkpoint_response.json()["requires_confirmation"] is True
+
+    rejection_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "sess-pix-rejected",
+            "customer_id": "123",
+            "message": "não autorizo",
+        },
+    )
+
+    assert rejection_response.status_code == 200
+    body = rejection_response.json()
+    assert body["requires_confirmation"] is False
+    assert body["pending_operation"] is None
+    assert "nenhum valor foi transferido" in body["message"].lower()
+    assert mock_bank_service.get_balance("123").balance == 25000.0
+
+    trace = client.get("/v1/mcp/trace/sess-pix-rejected", headers=INTERNAL_TOOL_HEADERS).json()
+    assert trace["hitl"]["status"] == "cancelled"
+    assert [event["type"] for event in trace["hitl"]["events"]] == ["created", "cancelled"]
+    assert audit_log_service.list_by_customer("123")[-1]["status"] == "cancelled"
 
 
 def test_emergency_flow_blocks_card() -> None:

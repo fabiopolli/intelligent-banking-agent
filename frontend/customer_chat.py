@@ -21,7 +21,7 @@ from frontend.ui_common import (
 
 def init_state() -> None:
     st.session_state.setdefault("chat_history", [])
-    st.session_state.setdefault("selected_prompt", PROMPTS["Tarifas"])
+    st.session_state.setdefault("message_input", "")
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_latency_ms", None)
     st.session_state.setdefault("last_render_latency_ms", None)
@@ -85,7 +85,23 @@ def render_prompt_buttons() -> None:
     columns = st.columns(len(PROMPTS))
     for column, (label, prompt) in zip(columns, PROMPTS.items()):
         if column.button(label, use_container_width=True):
-            st.session_state["selected_prompt"] = prompt
+            st.session_state["message_input"] = prompt
+
+
+def submit_message(
+    api_url: str,
+    session_id: str,
+    customer_id: str,
+    auth_token: str,
+    message: str,
+) -> None:
+    st.session_state["chat_history"].append({"role": "user", "content": message})
+    start = time.perf_counter()
+    result = send_chat_message(api_url, session_id, customer_id, auth_token, message)
+    st.session_state["last_latency_ms"] = round((time.perf_counter() - start) * 1000)
+    st.session_state["last_result"] = result
+    st.session_state["chat_history"].append({"role": "assistant", "content": result.get("message", "")})
+    st.session_state["render_started_at"] = time.perf_counter()
 
 
 def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str) -> None:
@@ -96,27 +112,21 @@ def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str
             # Streamlit treats an unescaped dollar sign as a Markdown math delimiter.
             st.write(str(item["content"]).replace("$", r"\$"))
 
-    with st.form("customer_chat_form", clear_on_submit=False):
-        message = st.text_area("Mensagem", value=st.session_state["selected_prompt"], height=120)
+    with st.form("customer_chat_form", clear_on_submit=True):
+        message = st.text_area("Mensagem", key="message_input", height=120)
         submitted = st.form_submit_button("Enviar", type="primary", use_container_width=True)
 
     if not submitted:
         return
 
-    st.session_state["chat_history"].append({"role": "user", "content": message})
     try:
-        start = time.perf_counter()
-        result = send_chat_message(api_url, session_id, customer_id, auth_token, message)
-        st.session_state["last_latency_ms"] = round((time.perf_counter() - start) * 1000)
-        st.session_state["last_result"] = result
-        st.session_state["chat_history"].append({"role": "assistant", "content": result.get("message", "")})
-        st.session_state["render_started_at"] = time.perf_counter()
+        submit_message(api_url, session_id, customer_id, auth_token, message)
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         st.error(f"Nao foi possivel processar a mensagem: {exc}")
 
 
-def render_customer_action() -> None:
+def render_customer_action(api_url: str, session_id: str, customer_id: str, auth_token: str) -> None:
     render_started_at = st.session_state.get("render_started_at")
     if render_started_at is not None:
         st.session_state["last_render_latency_ms"] = round((time.perf_counter() - render_started_at) * 1000)
@@ -156,6 +166,13 @@ def render_customer_action() -> None:
             """,
             unsafe_allow_html=True,
         )
+        approve, reject = st.columns(2)
+        if approve.button("Autorizar", type="primary", use_container_width=True):
+            submit_message(api_url, session_id, customer_id, auth_token, "confirmo")
+            st.rerun()
+        if reject.button("Não autorizar", use_container_width=True):
+            submit_message(api_url, session_id, customer_id, auth_token, "não autorizo")
+            st.rerun()
 
     latency = st.session_state.get("last_latency_ms")
     if latency is not None:
@@ -188,7 +205,7 @@ def main() -> None:
         return
     api_url, session_id, customer_id, auth_token = sidebar_state
     render_chat(api_url, session_id, customer_id, auth_token)
-    render_customer_action()
+    render_customer_action(api_url, session_id, customer_id, auth_token)
 
 
 if __name__ == "__main__":

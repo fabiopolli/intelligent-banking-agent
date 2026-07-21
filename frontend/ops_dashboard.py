@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
+from html import escape
 
 import streamlit as st
 
@@ -17,13 +19,78 @@ from frontend.ui_common import (
     fetch_trace,
     render_header,
 )
+from frontend.customer_chat import format_brl
 
 
 MAX_VISIBLE_AUDIT_EVENTS = 3
+AUTO_REFRESH_SECONDS = 2
 
 
 def latest_audit_events(events: list[dict]) -> list[dict]:
     return list(reversed(events[-MAX_VISIBLE_AUDIT_EVENTS:]))
+
+
+def build_journey_steps(trace_payload: dict) -> list[dict[str, str]]:
+    trace = trace_payload.get("trace") or {}
+    if not trace:
+        return [{"title": "Aguardando cliente", "detail": "Envie uma mensagem no chat", "status": "pending"}]
+
+    observability = trace.get("observability") or {}
+    route = trace.get("route", "unknown")
+    guardrails = observability.get("guardrails") or {}
+    hitl = trace_payload.get("hitl") or {}
+    tools = observability.get("tools_called") or []
+    planner = observability.get("planner") or {}
+    llm = observability.get("llm") or {}
+    steps = [
+        {"title": "Mensagem", "detail": f"Sessão {trace.get('session_id', '-')}", "status": "success"},
+        {
+            "title": "Guardrails",
+            "detail": "Bloqueado" if guardrails.get("blocked") else "Entrada aprovada",
+            "status": "blocked" if guardrails.get("blocked") else "success",
+        },
+        {
+            "title": "Roteamento",
+            "detail": planner.get("selected_tool") or route,
+            "status": "success",
+        },
+    ]
+    if route == "faq_fast_path":
+        source_count = len(trace.get("grounding_sources") or [])
+        steps.append({"title": "RAG oficial", "detail": f"{source_count} fonte(s)", "status": "success" if source_count else "warning"})
+        provider = llm.get("provider") or "Resposta determinística"
+        steps.append({"title": "Síntese", "detail": provider, "status": "success"})
+    elif route in {"transaction", "core_banking", "emergency"}:
+        steps.append({"title": "RBAC e políticas", "detail": "Autorização nativa", "status": "success"})
+        if hitl.get("encountered") or trace.get("requires_confirmation"):
+            hitl_status = hitl.get("status") or "awaiting_confirmation"
+            status = "warning" if hitl_status == "awaiting_confirmation" else ("blocked" if hitl_status in {"cancelled", "failed"} else "success")
+            steps.append({"title": "HITL", "detail": hitl_status, "status": status})
+        if tools:
+            steps.append({"title": "MCP / ferramenta", "detail": str(tools[-1]), "status": "success"})
+    steps.append(
+        {
+            "title": "Resposta",
+            "detail": "Aguardando autorização" if trace.get("requires_confirmation") else "Entregue ao cliente",
+            "status": "warning" if trace.get("requires_confirmation") else "success",
+        }
+    )
+    return steps
+
+
+def render_journey_panel(trace_payload: dict) -> None:
+    st.subheader("Jornada da solicitação")
+    steps = build_journey_steps(trace_payload)
+    cards = []
+    for index, step in enumerate(steps, start=1):
+        cards.append(
+            f"<div class='journey-step {escape(step['status'])}'>"
+            f"<div class='journey-index'>ETAPA {index}</div>"
+            f"<div class='journey-title'>{escape(step['title'])}</div>"
+            f"<div class='journey-detail'>{escape(step['detail'])}</div>"
+            "</div>"
+        )
+    st.markdown(f"<div class='journey-flow'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
 
 def render_sidebar() -> tuple[str, str, str]:
@@ -35,24 +102,24 @@ def render_sidebar() -> tuple[str, str, str]:
 
 
 def render_customer_panel(api_url: str, customer_id: str) -> None:
-    st.subheader("Customer State")
+    st.subheader("Estado do cliente")
     try:
         profile = fetch_profile(api_url, customer_id)
         balance = fetch_balance(api_url, customer_id)
     except Exception as exc:  # noqa: BLE001
-        st.error(f"Customer lookup failed: {exc}")
+        st.error(f"Falha ao consultar cliente: {exc}")
         return
 
     first, second = st.columns(2)
-    first.metric("Balance", f"R$ {float(balance['balance']):,.2f}")
-    second.metric("Card limit", f"R$ {float(profile['card_limit']):,.2f}")
+    first.metric("Saldo", format_brl(float(balance["balance"])))
+    second.metric("Limite do cartão", format_brl(float(profile["card_limit"])))
     third, fourth = st.columns(2)
-    third.metric("Card", profile["card_status"])
-    fourth.metric("Segment", profile["segment"])
+    third.metric("Cartão", profile["card_status"])
+    fourth.metric("Segmento", profile["segment"])
 
 
 def render_trace_panel(api_url: str, session_id: str) -> None:
-    st.subheader("Harness Trace")
+    st.subheader("Trace do Agent Harness")
     try:
         trace_payload = fetch_trace(api_url, session_id)
     except Exception as exc:  # noqa: BLE001
@@ -61,7 +128,7 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
 
     trace = trace_payload.get("trace")
     if trace is None:
-        st.info("No trace recorded for this session yet.")
+        st.info("Ainda não há trace para esta sessão.")
         return
 
     route = trace.get("route", "unknown")
@@ -70,6 +137,7 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
         "awaiting_confirmation": "Awaiting",
         "completed": "Completed",
         "failed": "Failed",
+        "cancelled": "Cancelado",
     }.get(hitl.get("status"), "Not used")
     source_count = len(trace.get("grounding_sources") or [])
     observability = trace.get("observability") or {}
@@ -78,21 +146,23 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     planner = observability.get("planner") or {}
 
     first, second = st.columns(2)
-    first.metric("Route", route)
+    first.metric("Rota", route)
     second.metric("HITL", hitl_status)
     third, fourth = st.columns(2)
-    third.metric("Sources", source_count)
-    fourth.metric("Tools", len(tools_called))
+    third.metric("Fontes", source_count)
+    fourth.metric("Ferramentas", len(tools_called))
     fifth, sixth = st.columns(2)
     planner_provider = planner.get("provider") or "Not used this turn"
     fifth.metric("LLM Planner", planner_provider)
-    sixth.metric("Fallback", "Yes" if planner.get("fallback_used") else "No")
+    sixth.metric("Fallback", "Sim" if planner.get("fallback_used") else "Não")
     if not planner:
         st.caption("Native Harness continuation: this turn did not require LLM intent planning.")
 
     pending = trace.get("pending_operation")
     if hitl.get("status") == "completed":
         st.success("HITL completed after customer confirmation.")
+    elif hitl.get("status") == "cancelled":
+        st.warning("Operação cancelada pelo cliente no checkpoint HITL.")
     elif pending:
         st.warning(f"Checkpoint pending: {pending}")
     elif route == "emergency":
@@ -108,7 +178,8 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     if hitl.get("encountered"):
         with st.expander("HITL lifecycle", expanded=True):
             st.caption(f"Correlation ID: {hitl.get('correlation_id')}")
-            st.caption(f"Duration: {hitl.get('duration_ms')} ms")
+            duration = hitl.get("duration_ms")
+            st.caption(f"Duração: {duration} ms" if duration is not None else "Duração: não aplicável")
             st.code(json.dumps(hitl.get("events") or [], indent=2, ensure_ascii=False), language="json")
 
     with st.expander("Observability: tools, prompt, context and tokens", expanded=False):
@@ -167,14 +238,14 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
 
 
 def render_evidence_panel(api_url: str, session_id: str) -> None:
-    st.subheader("RAG Evidence")
+    st.subheader("Evidências do RAG")
     trace = fetch_trace(api_url, session_id).get("trace")
     if not trace or trace.get("route") != "faq_fast_path":
         st.info("Evidence appears after a documental question.")
         return
 
     sources = trace.get("grounding_sources") or []
-    st.metric("Official sources", len(sources))
+    st.metric("Fontes oficiais", len(sources))
     if not sources:
         st.warning("No official source was returned.")
         return
@@ -184,7 +255,7 @@ def render_evidence_panel(api_url: str, session_id: str) -> None:
 
 
 def render_audit_panel(api_url: str, customer_id: str) -> None:
-    st.subheader("Critical Audit")
+    st.subheader("Auditoria crítica")
     try:
         events = fetch_audit_events(api_url, customer_id)
     except Exception as exc:  # noqa: BLE001
@@ -195,15 +266,15 @@ def render_audit_panel(api_url: str, customer_id: str) -> None:
         st.info("No critical events recorded yet.")
         return
 
-    st.metric("Events", len(events))
-    st.caption(f"Showing the latest {min(len(events), MAX_VISIBLE_AUDIT_EVENTS)} events.")
+    st.metric("Eventos", len(events))
+    st.caption(f"Exibindo os {min(len(events), MAX_VISIBLE_AUDIT_EVENTS)} eventos mais recentes.")
     for event in latest_audit_events(events):
         with st.expander(f"{event['event_type']} | {event['timestamp']}", expanded=False):
             st.json(event)
 
 
 def render_observability_panel(api_url: str) -> None:
-    st.subheader("Observability")
+    st.subheader("Observabilidade")
     try:
         status = fetch_observability_status(api_url)["langsmith"]
     except Exception as exc:  # noqa: BLE001
@@ -222,7 +293,7 @@ def render_observability_panel(api_url: str) -> None:
 
 
 def render_knowledge_panel(api_url: str) -> None:
-    st.subheader("Knowledge Base")
+    st.subheader("Base de conhecimento")
     try:
         status = fetch_knowledge_status(api_url)
     except Exception as exc:  # noqa: BLE001
@@ -242,17 +313,14 @@ def render_knowledge_panel(api_url: str) -> None:
             st.markdown(f"<div class='source-pill'>{source}</div>", unsafe_allow_html=True)
 
 
-def main() -> None:
-    configure_page("Agent Ops Dashboard")
-    render_header(
-        "Agent Ops Dashboard",
-        "Painel tecnico para acompanhar estado, rota, HITL, RAG, payloads e auditoria em outra tela.",
-    )
-    api_url, session_id, customer_id = render_sidebar()
-
-    if st.button("Refresh dashboard", type="primary"):
-        st.rerun()
-
+@st.fragment(run_every=f"{AUTO_REFRESH_SECONDS}s")
+def render_live_dashboard(api_url: str, session_id: str, customer_id: str) -> None:
+    try:
+        trace_payload = fetch_trace(api_url, session_id)
+    except Exception:  # noqa: BLE001
+        trace_payload = {}
+    render_journey_panel(trace_payload)
+    st.caption(f"Atualização automática a cada {AUTO_REFRESH_SECONDS}s · {datetime.now().strftime('%H:%M:%S')}")
     left, center, right = st.columns([1.05, 1.25, 1.05])
     with left:
         render_customer_panel(api_url, customer_id)
@@ -263,6 +331,17 @@ def main() -> None:
         render_observability_panel(api_url)
         render_knowledge_panel(api_url)
         render_evidence_panel(api_url, session_id)
+
+
+def main() -> None:
+    configure_page("Agent Ops Dashboard")
+    render_header(
+        "Agent Ops Dashboard",
+        "Painel tecnico para acompanhar estado, rota, HITL, RAG, payloads e auditoria em outra tela.",
+    )
+    api_url, session_id, customer_id = render_sidebar()
+
+    render_live_dashboard(api_url, session_id, customer_id)
 
 
 if __name__ == "__main__":

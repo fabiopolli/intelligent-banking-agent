@@ -144,7 +144,7 @@ class ResponseBuilder:
         return HarnessResponse(
             route="core_banking",
             session_id=session_id,
-            message=f"Seu saldo atual e R$ {balance.balance:.2f}.",
+            message=f"Seu saldo atual e {self._format_brl(balance.balance)}.",
         )
 
     def transaction_needs_details(
@@ -197,9 +197,29 @@ class ResponseBuilder:
         return HarnessResponse(
             route="transaction",
             session_id=session_id,
-            message=f"PIX realizado com sucesso. Seu saldo atualizado e R$ {balance:.2f}.",
+            message=f"PIX realizado com sucesso. Seu saldo atualizado e {self._format_brl(balance)}.",
             balance=balance,
             pix_details=pix_details or {},
+        )
+
+    def operation_cancelled(self, session_id: str, operation: str) -> HarnessResponse:
+        is_pix = operation == "create_pix"
+        return HarnessResponse(
+            route="transaction" if is_pix else "core_banking",
+            session_id=session_id,
+            message=(
+                "Pix não autorizado. Nenhum valor foi transferido."
+                if is_pix
+                else "Alteração de limite não autorizada. Seu limite atual foi mantido."
+            ),
+            pending_operation=None,
+            requires_confirmation=False,
+            observability={
+                "hitl": {
+                    "status": "cancelled",
+                    "events": [{"type": "cancelled"}],
+                }
+            },
         )
 
     def faq_fast_path(self, session_id: str) -> HarnessResponse:

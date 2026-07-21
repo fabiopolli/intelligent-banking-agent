@@ -112,6 +112,8 @@ class DemoHarness:
         social_answer = social_conversation_service.answer(payload.message)
         if social_answer is not None:
             return self._response_builder.social(payload.session_id, social_answer)
+        if self._is_rejection_message(payload.message):
+            return self._cancel_pending_operation(payload, auth)
         if self._is_confirmation_message(payload.message):
             return self._resume_pending_operation(payload, auth)
         if self._has_collectable_limit_draft(payload):
@@ -283,6 +285,40 @@ class DemoHarness:
         response = self._orchestrator.limit_update_execute(payload.session_id, pending_limit)
         self._checkpoints.consume_pending_limit(payload.session_id)
         return response
+
+    def _cancel_pending_operation(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        pending_pix = self._checkpoints.get_pending_pix(payload.session_id)
+        if pending_pix is not None:
+            self._rbac_service.validate_owner_access(auth, pending_pix.customer_id, "write")
+            self._checkpoints.consume_pending_pix(payload.session_id)
+            audit_log_service.append(
+                pending_pix.customer_id,
+                "PIX",
+                {"amount": pending_pix.amount, "destination_key": pending_pix.destination_key},
+                status="cancelled",
+                idempotency_key=f"pix:{pending_pix.correlation_id}:cancelled",
+            )
+            response = self._response_builder.operation_cancelled(payload.session_id, "create_pix")
+            response.observability["hitl"]["correlation_id"] = pending_pix.correlation_id
+            return response
+
+        pending_limit = self._checkpoints.get_pending_limit(payload.session_id)
+        if pending_limit is not None:
+            self._rbac_service.validate_owner_access(auth, pending_limit.customer_id, "write")
+            self._checkpoints.consume_pending_limit(payload.session_id)
+            audit_log_service.append(
+                pending_limit.customer_id,
+                "LIMIT_CHANGE",
+                {"requested_limit": pending_limit.requested_limit},
+                status="cancelled",
+                idempotency_key=(
+                    f"limit:{payload.session_id}:{pending_limit.customer_id}:"
+                    f"{pending_limit.requested_limit}:cancelled"
+                ),
+            )
+            return self._response_builder.operation_cancelled(payload.session_id, "update_card_limit")
+
+        raise ValueError("Nao existe operacao pendente para cancelar nesta sessao.")
 
     def _handle_limit_increase(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._rbac_service.validate_owner_access(auth, payload.customer_id, "write")
@@ -498,3 +534,13 @@ class DemoHarness:
     def _is_confirmation_message(self, message: str) -> bool:
         normalized = message.lower().strip()
         return normalized in {"confirmo", "confirmar", "sim, confirmo", "pode confirmar"}
+
+    def _is_rejection_message(self, message: str) -> bool:
+        normalized = self._normalize(message).strip()
+        return normalized in {
+            "cancelar",
+            "cancelo",
+            "nao autorizo",
+            "nao confirmar",
+            "recusar",
+        }

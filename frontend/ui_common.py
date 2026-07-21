@@ -33,6 +33,16 @@ def configure_page(title: str, wide: bool = True) -> None:
             background: #0f141c;
             color: #eef3f8;
         }
+        .stApp::before {
+            content: "";
+            position: fixed;
+            z-index: 999999;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 7px;
+            background: linear-gradient(90deg, #ec7000 0%, #ff8c00 62%, #ffb000 100%);
+        }
         .main .block-container {
             padding-top: 1.4rem;
             padding-bottom: 2rem;
@@ -116,6 +126,7 @@ def configure_page(title: str, wide: bool = True) -> None:
         }
         .hero-band {
             border: 1px solid #303846;
+            border-top: 4px solid #ec7000;
             border-radius: 8px;
             padding: 1rem 1.1rem;
             background: #141922;
@@ -146,6 +157,29 @@ def configure_page(title: str, wide: bool = True) -> None:
             color: #fff6df;
             margin-top: 0.8rem;
         }
+        .journey-flow {
+            display: flex;
+            align-items: stretch;
+            gap: 0.4rem;
+            overflow-x: auto;
+            padding: 0.4rem 0 0.8rem;
+        }
+        .journey-step {
+            min-width: 128px;
+            flex: 1 0 128px;
+            border: 1px solid #3b4658;
+            border-top: 4px solid #ec7000;
+            border-radius: 8px;
+            padding: 0.7rem;
+            background: #141922;
+        }
+        .journey-step.pending { border-top-color: #667085; opacity: 0.68; }
+        .journey-step.warning { border-top-color: #fdb022; }
+        .journey-step.blocked { border-top-color: #f04438; }
+        .journey-step.success { border-top-color: #12b76a; }
+        .journey-index { color: #ff9f43; font-size: 0.72rem; font-weight: 700; }
+        .journey-title { color: #f8fafc; font-weight: 700; margin: 0.18rem 0; }
+        .journey-detail { color: #b7c1cf; font-size: 0.78rem; line-height: 1.25; }
         </style>
         """,
         unsafe_allow_html=True,

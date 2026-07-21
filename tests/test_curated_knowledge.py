@@ -17,7 +17,7 @@ from app.services.knowledge.embedding import DeterministicTokenEmbedding
 from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.service import GroundedKnowledgeService
 from frontend import ui_common
-from frontend.ops_dashboard import latest_audit_events
+from frontend.ops_dashboard import build_journey_steps, latest_audit_events
 from frontend.customer_chat import format_brl
 
 
@@ -308,6 +308,36 @@ def test_dashboard_limits_visible_audit_to_three_latest_events() -> None:
 
     assert [event["event_id"] for event in visible] == ["7", "6", "5"]
     assert len(events) == 7
+
+
+def test_dashboard_builds_observable_pix_hitl_journey() -> None:
+    steps = build_journey_steps(
+        {
+            "trace": {
+                "session_id": "journey-session",
+                "route": "transaction",
+                "requires_confirmation": True,
+                "observability": {
+                    "tools_called": ["mcp-streamable-http.create_pix"],
+                    "planner": {"selected_tool": "create_pix"},
+                },
+            },
+            "hitl": {"encountered": True, "status": "awaiting_confirmation"},
+        }
+    )
+
+    titles = [step["title"] for step in steps]
+    assert titles == [
+        "Mensagem",
+        "Guardrails",
+        "Roteamento",
+        "RBAC e políticas",
+        "HITL",
+        "MCP / ferramenta",
+        "Resposta",
+    ]
+    assert steps[4]["status"] == "warning"
+    assert "create_pix" in steps[5]["detail"]
 
 
 def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001
