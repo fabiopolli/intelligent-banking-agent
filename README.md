@@ -449,9 +449,23 @@ Checklist rápido:
 
 ## Próximos Passos
 
-- adicionar ao painel tecnico um diagrama do fluxo da ultima resposta, derivado do trace real do Harness e sem expor chain-of-thought
-- validar manualmente `SLICE-LLM-GROUNDED-FAQ` com `OPENAI_API_KEY` real, mantendo o mesmo contrato de contexto aprovado
-- acompanhar GitHub Actions para confirmar `pytest` e `docker build`
-- depois da LLM documental, expandir multi-turno de RAG para servico, tipo de conta, pacote e canal
-- depois disso, evoluir PIX para fluxo realista com chave, destinatario, confirmacao sensivel e autenticacao simulada por app
-- consolidar README final, evidencias de teste, Tech Lead review e PR para `main`
+O backend funcional ainda possui limites conhecidos: o trace guarda somente a ultima resposta da
+sessao, a identidade de demo ainda nao oferece login confiavel por perfil e a auditoria critica fica
+em memoria ate o reinicio da API. A configuracao de modelos tambem precisa ser consolidada antes de
+ser tratada como politica final.
+
+Ordem aprovada para concluir a entrega:
+
+1. criar `main` a partir do commit-base `02bd31a`, mantendo `feat/tech-lead-planning` como origem do PR;
+2. preservar no backend toda a passagem HITL de Pix: checkpoint, retomada e conclusao;
+3. adicionar login simulado confiavel para cliente, gerente e administrador e provar RBAC para terceiros;
+4. persistir auditoria critica append-only no PostgreSQL, com hash, idempotencia e bloqueio de alteracao/exclusao;
+5. padronizar OpenAI `gpt-5.4` como primario, Gemma4 como fallback documental e resposta deterministica final;
+6. mover prompts internos para ingles, exigir saida pt-BR e tratar saudacoes/apresentacoes antes do RAG;
+7. medir separadamente latencia de frontend, API, roteamento, retrieval, provider e composicao;
+8. aplicar o polimento final do frontend somente depois dos contratos de backend;
+9. alinhar CI final, diagrama de arquitetura, evidencias, revisao Tech Lead e PR para `main`.
+
+O planner nao usara Gemma4 como fallback: em falha da OpenAI ele retorna ao roteador deterministico.
+Gemma4 fica restrito a sintese documental/conversacional aprovada. Identidade, RBAC, HITL, politicas,
+execucao e auditoria permanecem sempre em codigo nativo no Agent Harness.
