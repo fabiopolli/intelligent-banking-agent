@@ -1,3 +1,5 @@
+import time
+
 from fastapi import APIRouter, Header, HTTPException
 
 from app.schemas.messages import ChatRequest
@@ -22,13 +24,18 @@ def demo_session(x_demo_auth_token: str | None = Header(default=None)) -> dict:
 
 @router.post("/channels/app/chat")
 def app_chat(payload: ChatRequest, x_demo_auth_token: str | None = Header(default=None)) -> dict:
+    request_started_at = time.perf_counter()
     principal = None
     target_customer_id = payload.customer_id
     try:
         principal = identity_service.resolve_principal(x_demo_auth_token)
         if ingress_guardrails.contains_sensitive_credential(payload.message):
             trusted_payload = payload.model_copy(update={"role": principal.role})
-            return harness.handle_message(trusted_payload, auth=principal)
+            return harness.handle_message(
+                trusted_payload,
+                auth=principal,
+                request_started_at=request_started_at,
+            )
         target_customer_id = target_customer_resolver.resolve(payload.message, payload.customer_id)
         principal = identity_service.authenticate(x_demo_auth_token, target_customer_id)
         trusted_payload = payload.model_copy(
@@ -38,7 +45,11 @@ def app_chat(payload: ChatRequest, x_demo_auth_token: str | None = Header(defaul
                 "message": target_customer_resolver.remove_reference(payload.message),
             }
         )
-        return harness.handle_message(trusted_payload, auth=principal)
+        return harness.handle_message(
+            trusted_payload,
+            auth=principal,
+            request_started_at=request_started_at,
+        )
     except PermissionError as exc:
         if principal is not None:
             with audit_execution_scope(

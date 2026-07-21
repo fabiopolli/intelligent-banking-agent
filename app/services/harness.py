@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 from uuid import uuid4
 
@@ -45,7 +46,13 @@ class DemoHarness:
         self._workflow_graph = DemoWorkflowGraph(self._orchestrator)
         self._checkpoints = checkpoints or checkpoint_store
 
-    def handle_message(self, payload: ChatRequest, auth: AuthContext | None = None) -> dict:
+    def handle_message(
+        self,
+        payload: ChatRequest,
+        auth: AuthContext | None = None,
+        request_started_at: float | None = None,
+    ) -> dict:
+        harness_started_at = time.perf_counter()
         trusted_auth = auth or AuthContext(
             principal_id=payload.customer_id,
             customer_id=payload.customer_id,
@@ -62,6 +69,13 @@ class DemoHarness:
             )
         ):
             response = self._handle_message(payload, trusted_auth)
+        timings = dict(response.observability.get("timings") or {})
+        timings["harness_total_ms"] = round((time.perf_counter() - harness_started_at) * 1000)
+        planner = response.observability.get("planner") or {}
+        timings["routing_ms"] = planner.get("duration_ms", 0) or 0
+        if request_started_at is not None:
+            timings["api_total_ms"] = round((time.perf_counter() - request_started_at) * 1000)
+        response.observability = {**response.observability, "timings": timings}
         response_payload = response.model_dump()
         trace_store.record(payload.session_id, response_payload)
         return response_payload

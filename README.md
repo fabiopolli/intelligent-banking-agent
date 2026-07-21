@@ -307,6 +307,11 @@ O chat usa um timeout maior que o budget do provider LLM. Assim, se o Model Runn
 configurado estiver indisponivel, a API consegue concluir o fallback antes de o Streamlit abandonar
 a requisicao. Alteracoes nesses budgets devem preservar essa ordem.
 
+O payload tecnico separa `api_total_ms`, `harness_total_ms`, `routing_ms`, `retrieval_ms`,
+`provider_ms`, `composition_ms` e `knowledge_total_ms`. O chat mede ainda o round-trip observado,
+o overhead aproximado de rede/cliente e o tempo do rerun do Streamlit; o dashboard apresenta os
+tempos do backend no trace sem fazer chamadas adicionais.
+
 ## MCP, Tools e Resources
 
 O projeto expõe duas camadas para representar o item MCP do desafio sem permitir que a LLM execute operações diretamente:

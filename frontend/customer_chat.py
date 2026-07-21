@@ -24,6 +24,8 @@ def init_state() -> None:
     st.session_state.setdefault("selected_prompt", PROMPTS["Tarifas"])
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_latency_ms", None)
+    st.session_state.setdefault("last_render_latency_ms", None)
+    st.session_state.setdefault("render_started_at", None)
     st.session_state.setdefault("demo_identity", None)
     st.session_state.setdefault("demo_profile", "customer")
 
@@ -102,12 +104,17 @@ def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str
         st.session_state["last_latency_ms"] = round((time.perf_counter() - start) * 1000)
         st.session_state["last_result"] = result
         st.session_state["chat_history"].append({"role": "assistant", "content": result.get("message", "")})
+        st.session_state["render_started_at"] = time.perf_counter()
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         st.error(f"Nao foi possivel processar a mensagem: {exc}")
 
 
 def render_customer_action() -> None:
+    render_started_at = st.session_state.get("render_started_at")
+    if render_started_at is not None:
+        st.session_state["last_render_latency_ms"] = round((time.perf_counter() - render_started_at) * 1000)
+        st.session_state["render_started_at"] = None
     result = st.session_state.get("last_result")
     if not result:
         return
@@ -147,7 +154,20 @@ def render_customer_action() -> None:
 
     latency = st.session_state.get("last_latency_ms")
     if latency is not None:
-        st.caption(f"Tempo de resposta: {latency} ms")
+        timings = (result.get("observability") or {}).get("timings") or {}
+        api_ms = int(timings.get("api_total_ms") or 0)
+        network_ms = max(0, latency - api_ms)
+        render_ms = st.session_state.get("last_render_latency_ms") or 0
+        st.caption(f"Tempo total cliente → API → cliente: {latency} ms")
+        with st.expander("Detalhes de latência", expanded=False):
+            st.json(
+                {
+                    "frontend_round_trip_ms": latency,
+                    "network_and_client_ms": network_ms,
+                    "streamlit_render_ms": render_ms,
+                    **timings,
+                }
+            )
 
 
 def main() -> None:

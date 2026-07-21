@@ -112,6 +112,11 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
             st.code(json.dumps(hitl.get("events") or [], indent=2, ensure_ascii=False), language="json")
 
     with st.expander("Observability: tools, prompt, context and tokens", expanded=False):
+        st.markdown("**Latency breakdown**")
+        st.code(
+            json.dumps(observability.get("timings") or {}, indent=2, ensure_ascii=False),
+            language="json",
+        )
         st.markdown("**Agent planner**")
         st.code(
             json.dumps(

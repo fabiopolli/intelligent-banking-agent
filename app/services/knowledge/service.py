@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 from app.services.knowledge.answers import TariffAnswerBuilder
 from app.services.knowledge.config import (
@@ -33,34 +34,50 @@ class GroundedKnowledgeService:
         return result["message"], result["sources"]
 
     def answer_with_trace(self, query: str) -> dict:
+        started_at = time.perf_counter()
+        retrieval_ms = 0
+
+        def finish(payload: dict) -> dict:
+            total_ms = round((time.perf_counter() - started_at) * 1000)
+            provider_ms = int((payload["observability"].get("llm") or {}).get("duration_ms") or 0)
+            payload["observability"]["timings"] = {
+                "knowledge_total_ms": total_ms,
+                "retrieval_ms": retrieval_ms,
+                "provider_ms": provider_ms,
+                "composition_ms": max(0, total_ms - retrieval_ms - provider_ms),
+            }
+            return payload
+
         tools_called = ["classify_documental_query"]
         if not self._is_supported_documental_query(query):
             message = (
                 "Nao encontrei contexto oficial suficiente para responder com seguranca. "
                 "Posso seguir por atendimento humano ou por uma fonte oficial mais especifica."
             )
-            return self._answer_payload(message, [], tools_called, [], None)
+            return finish(self._answer_payload(message, [], tools_called, [], None))
 
         tools_called.extend(["hybrid_retrieve", "local_rerank"])
+        retrieval_started_at = time.perf_counter()
         ranked = self._reranker.rerank(query, self._retriever.retrieve(query, top_k=6))
+        retrieval_ms = round((time.perf_counter() - retrieval_started_at) * 1000)
         retrieved = self._select_grounded_contexts(ranked)
         if not retrieved or retrieved[0].score < 0.65:
             if self._is_tariff_query(query):
                 primary = self._default_tariff_reference()
                 tools_called.append("controlled_tariff_answer_builder")
-                return self._answer_payload(
+                return finish(self._answer_payload(
                     self._tariff_answers.build(query, primary),
                     [TARIFF_PDF_SOURCE],
                     tools_called,
                     [primary],
                     None,
-                )
+                ))
 
             message = (
                 "Nao encontrei contexto oficial suficiente para responder com seguranca. "
                 "Posso seguir por atendimento humano ou por uma fonte oficial mais especifica."
             )
-            return self._answer_payload(message, [], tools_called, retrieved, None)
+            return finish(self._answer_payload(message, [], tools_called, retrieved, None))
 
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
@@ -118,7 +135,7 @@ class GroundedKnowledgeService:
             llm_trace = None
 
         sources = list(dict.fromkeys(item.source for item in retrieved))
-        return self._answer_payload(message, sources, tools_called, retrieved, llm_trace)
+        return finish(self._answer_payload(message, sources, tools_called, retrieved, llm_trace))
 
     def status(self) -> dict:
         curated_documents = [

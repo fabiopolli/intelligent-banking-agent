@@ -68,6 +68,9 @@ def test_chat_balance_smoke() -> None:
     body = response.json()
     assert body["route"] == "core_banking"
     assert "saldo" in body["message"].lower()
+    assert body["observability"]["timings"]["api_total_ms"] >= 0
+    assert body["observability"]["timings"]["harness_total_ms"] >= 0
+    assert body["observability"]["timings"]["routing_ms"] >= 0
 
     trace_response = client.get("/v1/mcp/trace/sess-1", headers=INTERNAL_TOOL_HEADERS)
     assert trace_response.status_code == 200
@@ -719,6 +722,11 @@ def test_essential_package_multiturn_does_not_repeat_generic_tariff_prompt() -> 
         assert "4 saques" in message
         assert "diga o servico e o canal" not in message.lower()
         assert response.json()["observability"]["llm"]["provider"] == "disabled"
+        timings = response.json()["observability"]["timings"]
+        assert timings["retrieval_ms"] >= 0
+        assert timings["provider_ms"] == 0
+        assert timings["composition_ms"] >= 0
+        assert timings["knowledge_total_ms"] >= timings["retrieval_ms"]
 
 
 def test_documental_memory_does_not_overwrite_pending_pix_checkpoint(tmp_path) -> None:  # noqa: ANN001
