@@ -185,6 +185,7 @@ def build_official_documents() -> list[KnowledgeDocument]:
         tariff_catalog = TariffCatalogLoader()
         store.sync_tariff_inventory(tariff_catalog.load_inventory())
         store.sync_tariff_entries(tariff_catalog.load_entries())
+        store.sync_tariff_auxiliary(tariff_catalog.load_auxiliary())
         return store.load_documents()
     curated_sources = {document.source for document in curated}
     legacy_documents = [

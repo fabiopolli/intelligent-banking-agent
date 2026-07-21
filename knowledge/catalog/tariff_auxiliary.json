@@ -1,0 +1,58 @@
+{
+  "catalog_version": 1,
+  "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+  "effective_from": "2026-07-01",
+  "packages": [
+    {"package_id":"package-standard-i","section_code":"packages","page_number":5,"name":"Pacote Padronizado de Serviços I","monthly_fee":"16.10","total_services_value":"24.40","status":"published","reviewed_at":"2026-07-21"},
+    {"package_id":"package-standard-ii","section_code":"packages","page_number":5,"name":"Pacote Padronizado de Serviços II","monthly_fee":"28.00","total_services_value":"45.70","status":"published","reviewed_at":"2026-07-21"},
+    {"package_id":"package-standard-iii","section_code":"packages","page_number":5,"name":"Pacote Padronizado de Serviços III","monthly_fee":"37.40","total_services_value":"82.70","status":"published","reviewed_at":"2026-07-21"},
+    {"package_id":"package-standard-iv","section_code":"packages","page_number":5,"name":"Pacote Padronizado de Serviços IV","monthly_fee":"55.70","total_services_value":"111.30","status":"published","reviewed_at":"2026-07-21","dimensions":{"private_customer_exempt":true}}
+  ],
+  "package_items": [
+    {"package_id":"package-standard-i","item_id":"withdrawal","service_name":"Saque","included_quantity":"4","item_value":"9.00","conditions":{"free_quantity":"4","total_quantity":"8"}},
+    {"package_id":"package-standard-i","item_id":"monthly-statement","service_name":"Extrato mensal","included_quantity":"2","item_value":"6.20","conditions":{"free_quantity":"2","total_quantity":"4"}},
+    {"package_id":"package-standard-i","item_id":"period-statement","service_name":"Extrato de um período","included_quantity":"2","item_value":"6.20","conditions":{"free_quantity":"0","total_quantity":"2"}},
+    {"package_id":"package-standard-i","item_id":"internal-transfer","service_name":"Transferência entre contas na própria instituição","included_quantity":"2","item_value":"3.00","conditions":{"free_quantity":"2","total_quantity":"4"}},
+
+    {"package_id":"package-standard-ii","item_id":"cheque-leaves","service_name":"Folhas de cheque","included_quantity":"2","item_value":"4.00","conditions":{"free_quantity":"10","total_quantity":"12"}},
+    {"package_id":"package-standard-ii","item_id":"withdrawal","service_name":"Saque","included_quantity":"4","item_value":"9.00","conditions":{"free_quantity":"4","total_quantity":"8"}},
+    {"package_id":"package-standard-ii","item_id":"monthly-statement","service_name":"Extrato dos últimos 30 dias","included_quantity":"4","item_value":"12.40","conditions":{"free_quantity":"2","total_quantity":"6"}},
+    {"package_id":"package-standard-ii","item_id":"period-statement","service_name":"Extrato de outros períodos","included_quantity":"2","item_value":"6.20","conditions":{"free_quantity":"0","total_quantity":"2"}},
+    {"package_id":"package-standard-ii","item_id":"ted","service_name":"Transferência por TED","included_quantity":"1","item_value":"11.10","conditions":{"free_quantity":"0","total_quantity":"1"}},
+    {"package_id":"package-standard-ii","item_id":"internal-transfer","service_name":"Transferência entre contas na própria instituição","included_quantity":"2","item_value":"3.00","conditions":{"free_quantity":"2","total_quantity":"4"}},
+
+    {"package_id":"package-standard-iii","item_id":"cheque-leaves","service_name":"Folhas de cheque","included_quantity":"5","item_value":"10.00","conditions":{"free_quantity":"10","total_quantity":"15"}},
+    {"package_id":"package-standard-iii","item_id":"withdrawal","service_name":"Saque","included_quantity":"6","item_value":"13.50","conditions":{"free_quantity":"4","total_quantity":"10"}},
+    {"package_id":"package-standard-iii","item_id":"monthly-statement","service_name":"Extrato dos últimos 30 dias","included_quantity":"6","item_value":"18.60","conditions":{"free_quantity":"2","total_quantity":"8"}},
+    {"package_id":"package-standard-iii","item_id":"period-statement","service_name":"Extrato de outros períodos","included_quantity":"4","item_value":"12.40","conditions":{"free_quantity":"0","total_quantity":"4"}},
+    {"package_id":"package-standard-iii","item_id":"ted","service_name":"Transferência por TED","included_quantity":"2","item_value":"22.20","conditions":{"free_quantity":"0","total_quantity":"2"}},
+    {"package_id":"package-standard-iii","item_id":"internal-transfer","service_name":"Transferência entre contas na própria instituição","included_quantity":"4","item_value":"6.00","conditions":{"free_quantity":"2","total_quantity":"6"}},
+
+    {"package_id":"package-standard-iv","item_id":"cheque-leaves","service_name":"Folhas de cheque","included_quantity":"10","item_value":"20.00","conditions":{"free_quantity":"10","total_quantity":"20"}},
+    {"package_id":"package-standard-iv","item_id":"withdrawal","service_name":"Saque","included_quantity":"8","item_value":"18.00","conditions":{"free_quantity":"4","total_quantity":"12"}},
+    {"package_id":"package-standard-iv","item_id":"monthly-statement","service_name":"Extrato dos últimos 30 dias","included_quantity":"6","item_value":"18.60","conditions":{"free_quantity":"2","total_quantity":"8"}},
+    {"package_id":"package-standard-iv","item_id":"period-statement","service_name":"Extrato de outros períodos","included_quantity":"4","item_value":"12.40","conditions":{"free_quantity":"0","total_quantity":"4"}},
+    {"package_id":"package-standard-iv","item_id":"ted","service_name":"Transferência por TED","included_quantity":"3","item_value":"33.30","conditions":{"free_quantity":"0","total_quantity":"3"}},
+    {"package_id":"package-standard-iv","item_id":"internal-transfer","service_name":"Transferência entre contas na própria instituição","included_quantity":"6","item_value":"9.00","conditions":{"free_quantity":"2","total_quantity":"8"}}
+  ],
+  "rules": [
+    {"rule_id":"rule-package-overage","page_number":22,"rule_code":"PACKAGE_OVERAGE","text":"Serviços incluídos no pacote são cobrados individualmente somente após o cliente ultrapassar a quantidade prevista na composição.","status":"published","reviewed_at":"2026-07-21"},
+    {"rule_id":"rule-electronic-account","page_number":7,"rule_code":"ELECTRONIC_ACCOUNT","text":"Nas contas exclusivamente eletrônicas, tarifas indicadas para canais eletrônicos não podem ser cobradas quando a tabela assim determina.","status":"published","reviewed_at":"2026-07-21"},
+    {"rule_id":"rule-ccf-limit","page_number":8,"rule_code":"2","text":"A exclusão de CCF é limitada a dez cheques por ocorrência e pode incluir reembolso da taxa cobrada pelo Banco Central.","status":"published","reviewed_at":"2026-07-21"},
+    {"rule_id":"rule-cheque-event","page_number":8,"rule_code":"3","text":"Evento é o conjunto de cheques, de uma a vinte folhas do mesmo talão, com oposição ou cancelamento solicitado no mesmo dia.","status":"published","reviewed_at":"2026-07-21"},
+    {"rule_id":"rule-banco24horas-terminal","page_number":8,"rule_code":"4","text":"Saque terminal inclui caixas eletrônicos Itaú e caixas eletrônicos da rede Banco24Horas.","status":"published","reviewed_at":"2026-07-21"},
+    {"rule_id":"rule-card-payment-charges","page_number":8,"rule_code":"B","text":"Pagamento de contas com função crédito está sujeito à cobrança de encargos, incluindo juros e tributos.","status":"published","reviewed_at":"2026-07-21"}
+  ],
+  "entry_rule_links": [
+    {"tariff_id":"tar-exclusao-ccf","rule_id":"rule-ccf-limit"},
+    {"tariff_id":"tar-sustacao-revogacao-cheque","rule_id":"rule-cheque-event"},
+    {"tariff_id":"tar-saque-terminal","rule_id":"rule-banco24horas-terminal"},
+    {"tariff_id":"tar-saque-terminal","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-extrato-mensal-eletronico","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-extrato-periodo-eletronico","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-ted-eletronico","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-ted-internet","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-transferencia-interna-eletronica","rule_id":"rule-electronic-account"},
+    {"tariff_id":"tar-pagamento-contas-cartao","rule_id":"rule-card-payment-charges"}
+  ]
+}

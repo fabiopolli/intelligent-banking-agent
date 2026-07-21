@@ -40,3 +40,14 @@ def test_published_tariffs_are_reviewed_and_cover_demo_categories() -> None:
         "saque", "transferencias", "cartoes", "cheques", "investimentos"
     }
     assert any(entry.get("amount") == "11.10" and "TED" in entry["service_name"] for entry in entries)
+
+
+def test_auxiliary_catalog_populates_packages_items_rules_and_links() -> None:
+    catalog = TariffCatalogLoader().load_auxiliary()
+
+    assert len(catalog["packages"]) == 4
+    assert len(catalog["package_items"]) == 22
+    assert len(catalog["rules"]) == 6
+    assert len(catalog["entry_rule_links"]) == 10
+    assert all(item["status"] == "published" and item["reviewed_at"] for item in catalog["packages"])
+    assert all(item["status"] == "published" and item["reviewed_at"] for item in catalog["rules"])

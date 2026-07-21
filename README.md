@@ -140,8 +140,10 @@ O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e version
 
 A fonte canônica da KB local e o catalogo versionado em `knowledge/catalog/products.json`. Cada registro
 possui id estavel, produto, topico, publico, versao, data de revisao, fonte e limitacoes. No Compose,
-a API persiste os fatos curados em `knowledge_documents`, as origens em `knowledge_sources` e o conteudo
-fragmentado do PDF e dos snapshots oficiais em `knowledge_chunks`. A busca combina indice textual e
+a API persiste os fatos curados em `knowledge_facts`, suas evidencias em `fact_evidence`, as origens em
+`knowledge_sources` e o conteudo narrativo fragmentado em `knowledge_chunks`. Tarifas, regras e pacotes
+ficam normalizados em `tariff_entries`, `tariff_rules`, `tariff_entry_rules`, `service_packages` e
+`package_items`; `knowledge_pages` e `knowledge_sections` preservam a proveniencia do PDF. A busca combina indice textual e
 similaridade pgvector; nenhuma consulta web acontece durante o atendimento. Localmente e em CI, o mesmo
 catalogo funciona sem banco com retrieval em memoria.
 
@@ -170,7 +172,9 @@ Com o Compose em execucao, crie uma conexao PostgreSQL com:
 - Senha: `itau`
 - SSL: desabilitado para o ambiente local
 
-As tabelas de interesse sao `knowledge_sources`, `knowledge_chunks` e `knowledge_documents`. O volume
+As tabelas centrais sao `knowledge_sources`, `knowledge_chunks`, `knowledge_facts`, `fact_evidence`,
+`tariff_entries`, `tariff_rules`, `tariff_entry_rules`, `service_packages`, `package_items`,
+`knowledge_pages` e `knowledge_sections`. O volume
 Docker `knowledge-data` preserva os dados entre restarts dos containers.
 
 ### Observabilidade LangSmith

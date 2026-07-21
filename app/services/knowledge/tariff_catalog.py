@@ -6,6 +6,7 @@ from pathlib import Path
 
 TARIFF_INVENTORY_PATH = Path("knowledge/catalog/tariff_inventory.json")
 TARIFF_ENTRIES_PATH = Path("knowledge/catalog/tariff_entries.json")
+TARIFF_AUXILIARY_PATH = Path("knowledge/catalog/tariff_auxiliary.json")
 
 
 class TariffCatalogLoader:
@@ -13,13 +14,29 @@ class TariffCatalogLoader:
         self,
         inventory_path: Path = TARIFF_INVENTORY_PATH,
         entries_path: Path = TARIFF_ENTRIES_PATH,
+        auxiliary_path: Path = TARIFF_AUXILIARY_PATH,
     ) -> None:
         self._inventory_path = inventory_path
         self._entries_path = entries_path
+        self._auxiliary_path = auxiliary_path
 
     def load_inventory(self) -> dict:
         payload = json.loads(self._inventory_path.read_text(encoding="utf-8"))
         self._validate_inventory(payload)
+        return payload
+
+    def load_auxiliary(self) -> dict:
+        payload = json.loads(self._auxiliary_path.read_text(encoding="utf-8"))
+        package_ids = {item["package_id"] for item in payload.get("packages", [])}
+        rule_ids = {item["rule_id"] for item in payload.get("rules", [])}
+        tariff_ids = {item["tariff_id"] for item in self.load_entries()["entries"]}
+        if not package_ids or not rule_ids:
+            raise ValueError("Tariff packages and rules cannot be empty.")
+        if any(item["package_id"] not in package_ids for item in payload.get("package_items", [])):
+            raise ValueError("Every package item must reference a known package.")
+        for link in payload.get("entry_rule_links", []):
+            if link["tariff_id"] not in tariff_ids or link["rule_id"] not in rule_ids:
+                raise ValueError("Every tariff rule link must resolve both references.")
         return payload
 
     def load_entries(self) -> dict:

@@ -256,6 +256,75 @@ class PostgresKnowledgeStore:
                         entry.get("confidence"), entry.get("reviewed_at"),
                     ),
                 )
+
+    def sync_tariff_auxiliary(self, catalog: dict) -> None:
+        source = str(catalog["source"])
+        source_id = self._stable_id("source", source)
+        section_id = self._stable_id("section", f"{source}|packages")
+        with self._connect() as connection, connection.cursor() as cursor:
+            self._ensure_schema(cursor)
+            for package in catalog["packages"]:
+                cursor.execute(
+                    """
+                    INSERT INTO service_packages (
+                        package_id, source_id, section_id, page_number, name, audience,
+                        monthly_fee, total_services_value, dimensions, effective_from,
+                        status, reviewed_at
+                    ) VALUES (%s, %s, %s, %s, %s, 'pessoa_fisica', %s, %s, %s::jsonb, %s, %s, %s)
+                    ON CONFLICT (package_id) DO UPDATE SET
+                        name = EXCLUDED.name, monthly_fee = EXCLUDED.monthly_fee,
+                        total_services_value = EXCLUDED.total_services_value,
+                        dimensions = EXCLUDED.dimensions, status = EXCLUDED.status,
+                        reviewed_at = EXCLUDED.reviewed_at
+                    """,
+                    (
+                        package["package_id"], source_id, section_id, package["page_number"],
+                        package["name"], package["monthly_fee"], package["total_services_value"],
+                        json.dumps(package.get("dimensions", {}), ensure_ascii=False),
+                        catalog["effective_from"], package["status"], package["reviewed_at"],
+                    ),
+                )
+            for item in catalog["package_items"]:
+                cursor.execute(
+                    """
+                    INSERT INTO package_items (
+                        package_id, item_id, service_name, included_quantity, item_value, conditions
+                    ) VALUES (%s, %s, %s, %s, %s, %s::jsonb)
+                    ON CONFLICT (package_id, item_id) DO UPDATE SET
+                        service_name = EXCLUDED.service_name,
+                        included_quantity = EXCLUDED.included_quantity,
+                        item_value = EXCLUDED.item_value, conditions = EXCLUDED.conditions
+                    """,
+                    (
+                        item["package_id"], item["item_id"], item["service_name"],
+                        item.get("included_quantity"), item.get("item_value"),
+                        json.dumps(item.get("conditions", {}), ensure_ascii=False),
+                    ),
+                )
+            for rule in catalog["rules"]:
+                cursor.execute(
+                    """
+                    INSERT INTO tariff_rules (
+                        rule_id, source_id, page_number, rule_code, text,
+                        effective_from, status, reviewed_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (rule_id) DO UPDATE SET
+                        rule_code = EXCLUDED.rule_code, text = EXCLUDED.text,
+                        status = EXCLUDED.status, reviewed_at = EXCLUDED.reviewed_at
+                    """,
+                    (
+                        rule["rule_id"], source_id, rule["page_number"], rule["rule_code"],
+                        rule["text"], catalog["effective_from"], rule["status"], rule["reviewed_at"],
+                    ),
+                )
+            for link in catalog["entry_rule_links"]:
+                cursor.execute(
+                    """
+                    INSERT INTO tariff_entry_rules (tariff_id, rule_id)
+                    VALUES (%s, %s) ON CONFLICT (tariff_id, rule_id) DO NOTHING
+                    """,
+                    (link["tariff_id"], link["rule_id"]),
+                )
     def search(self, query: str, top_k: int = 6) -> list[RetrievedKnowledge]:
         query_vector = self._vector_literal(self._embedding.embed(query))
         with self._connect() as connection, connection.cursor() as cursor:
