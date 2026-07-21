@@ -146,8 +146,11 @@ def test_structured_credit_collection_and_fx_answers_are_direct() -> None:
     fx = service.answer_with_trace("Quanto custa contratar cambio pela mesa?")
 
     assert "R$ 10,50" in collection["message"]
+    assert "R$ 8,28" not in collection["message"]
     assert "R$ 3.420,00" in credit["message"]
+    assert "R$ 59,90" not in credit["message"]
     assert "R$ 650,00" in fx["message"]
+    assert "R$ 280,00" not in fx["message"]
     assert collection["observability"]["llm"]["provider"] == "disabled"
     assert credit["observability"]["llm"]["provider"] == "disabled"
     assert fx["observability"]["llm"]["provider"] == "disabled"

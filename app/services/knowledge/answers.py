@@ -82,6 +82,13 @@ class TariffAnswerBuilder:
         else:
             entries = [entry for entry in entries if entry["category"] == selected_intent]
 
+        if selected_intent in {"cobranca", "credito", "cambio", "cheques", "cartoes"}:
+            query_stems = self._specific_stems(normalized_query, selected_intent)
+            scores = [self._specificity_score(entry, query_stems) for entry in entries]
+            if scores and max(scores) > 0:
+                best = max(scores)
+                entries = [entry for entry, score in zip(entries, scores, strict=True) if score == best]
+
         channel_terms = {
             "internet": ("internet", "app", "aplicativo"),
             "terminal": ("terminal", "caixa eletronico", "autoatendimento", "banco24horas"),
@@ -102,6 +109,21 @@ class TariffAnswerBuilder:
             if filtered:
                 entries = filtered
         return entries[:6]
+
+    def _specific_stems(self, text: str, intent: str) -> set[str]:
+        ignored = {
+            "qual", "quanto", "custa", "tarifa", "taxa", "servico", "servicos",
+            "para", "pela", "pelo", "uma", "cobranca", "credito", "cambio",
+            "cheque", "cheques", "cartao", "cartoes", intent,
+        }
+        return {token[:5] for token in tokenize(text) if token not in ignored and len(token) >= 3}
+
+    def _specificity_score(self, entry: dict, query_stems: set[str]) -> int:
+        searchable = " ".join(
+            (entry.get("service_name", ""), entry.get("statement_code", ""), entry.get("charging_event", ""))
+        )
+        entry_stems = {token[:5] for token in tokenize(searchable) if len(token) >= 3}
+        return len(query_stems & entry_stems)
 
     def _format_structured_answer(self, entries: list[dict], normalized_query: str) -> str:
         descriptions = []
