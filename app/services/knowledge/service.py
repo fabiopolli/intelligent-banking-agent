@@ -64,11 +64,7 @@ class GroundedKnowledgeService:
 
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
-        if self._is_tariff_query(query):
-            tools_called.append("controlled_tariff_answer_builder")
-            message = self._tariff_answers.build(query, primary)
-            llm_trace = None
-        elif self._is_consignado_query(query):
+        if self._is_consignado_query(query):
             retrieved = [item for item in retrieved if "consignado" in item.source]
             tools_called.append("controlled_consignado_answer_builder")
             message = (
@@ -92,6 +88,10 @@ class GroundedKnowledgeService:
                 "vigente desde 01/07/2026 indica faixas de 0,10% a 4,50% para fundos abertos e de "
                 "0,30% a 4,50% para fundos fechados. Confira o regulamento do fundo antes de investir."
             )
+            llm_trace = None
+        elif self._is_tariff_query(query):
+            tools_called.append("controlled_tariff_answer_builder")
+            message = self._tariff_answers.build(query, primary)
             llm_trace = None
         elif self._synthesizer is not None:
             tools_called.append("grounded_faq_synthesizer")

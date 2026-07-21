@@ -205,6 +205,57 @@ class PostgresKnowledgeStore:
                     ),
                 )
 
+    def sync_tariff_entries(self, catalog: dict) -> None:
+        source = str(catalog["source"])
+        source_id = self._stable_id("source", source)
+        with self._connect() as connection, connection.cursor() as cursor:
+            self._ensure_schema(cursor)
+            for entry in catalog["entries"]:
+                section_id = self._stable_id("section", f"{source}|{entry['section_code']}")
+                cursor.execute(
+                    """
+                    INSERT INTO tariff_entries (
+                        tariff_id, source_id, section_id, page_number, category,
+                        service_code, service_name, delivery_channel, statement_code,
+                        value_type, amount, minimum_amount, maximum_amount,
+                        percentage_min, percentage_max, currency, billing_unit,
+                        charging_event, dimensions, effective_from, status,
+                        confidence, reviewed_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb,
+                        %s, %s, %s, %s
+                    )
+                    ON CONFLICT (tariff_id) DO UPDATE SET
+                        category = EXCLUDED.category, service_code = EXCLUDED.service_code,
+                        service_name = EXCLUDED.service_name,
+                        delivery_channel = EXCLUDED.delivery_channel,
+                        statement_code = EXCLUDED.statement_code,
+                        value_type = EXCLUDED.value_type, amount = EXCLUDED.amount,
+                        minimum_amount = EXCLUDED.minimum_amount,
+                        maximum_amount = EXCLUDED.maximum_amount,
+                        percentage_min = EXCLUDED.percentage_min,
+                        percentage_max = EXCLUDED.percentage_max,
+                        currency = EXCLUDED.currency, billing_unit = EXCLUDED.billing_unit,
+                        charging_event = EXCLUDED.charging_event,
+                        dimensions = EXCLUDED.dimensions,
+                        effective_from = EXCLUDED.effective_from, status = EXCLUDED.status,
+                        confidence = EXCLUDED.confidence, reviewed_at = EXCLUDED.reviewed_at,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (
+                        entry["tariff_id"], source_id, section_id, entry["page_number"],
+                        entry["category"], entry.get("service_code", ""), entry["service_name"],
+                        entry.get("delivery_channel", ""), entry.get("statement_code", ""),
+                        entry["value_type"], entry.get("amount"), entry.get("minimum_amount"),
+                        entry.get("maximum_amount"), entry.get("percentage_min"),
+                        entry.get("percentage_max"), entry.get("currency", "BRL"),
+                        entry.get("billing_unit", ""), entry.get("charging_event", ""),
+                        json.dumps(entry.get("dimensions", {}), ensure_ascii=False),
+                        catalog["effective_from"], entry.get("status", "review_required"),
+                        entry.get("confidence"), entry.get("reviewed_at"),
+                    ),
+                )
     def search(self, query: str, top_k: int = 6) -> list[RetrievedKnowledge]:
         query_vector = self._vector_literal(self._embedding.embed(query))
         with self._connect() as connection, connection.cursor() as cursor:

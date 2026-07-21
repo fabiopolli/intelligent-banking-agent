@@ -72,3 +72,18 @@ def test_tariff_inventory_sync_is_idempotent(monkeypatch) -> None:  # noqa: ANN0
     assert "on conflict (section_id) do update" in sql
     assert "on conflict (source_id, page_number) do update" in sql
     assert sql.count("insert into knowledge_pages") == 25
+
+
+def test_tariff_entry_sync_is_idempotent(monkeypatch) -> None:  # noqa: ANN001
+    from app.services.knowledge.tariff_catalog import TariffCatalogLoader
+
+    cursor = RecordingCursor()
+    store = PostgresKnowledgeStore("postgresql://unused")
+    monkeypatch.setattr(store, "_connect", lambda: RecordingConnection(cursor))
+
+    catalog = TariffCatalogLoader().load_entries()
+    store.sync_tariff_entries(catalog)
+
+    sql = "\n".join(cursor.statements)
+    assert "on conflict (tariff_id) do update" in sql
+    assert sql.count("insert into tariff_entries") == len(catalog["entries"])

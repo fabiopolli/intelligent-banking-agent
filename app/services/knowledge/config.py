@@ -46,6 +46,8 @@ DOCUMENTAL_QUERY_TERMS = {
     "boleto",
     "boletos",
     "cartao",
+    "cheque",
+    "cheques",
     "chat",
     "comprovante",
     "comprovantes",
@@ -89,11 +91,24 @@ DOCUMENTAL_QUERY_TERMS = {
     "servicos",
     "tarifa",
     "tarifas",
+    "ted",
     "transferencia",
     "whatsapp",
 }
 
 TARIFF_QUERY_TERMS = {
+    "anuidade",
+    "cadastro",
+    "cartao",
+    "cartoes",
+    "cheque",
+    "cheques",
+    "deposito",
+    "depositos",
+    "extrato",
+    "extratos",
+    "fundo",
+    "fundos",
     "pacote",
     "poupanca",
     "saque",
@@ -102,6 +117,7 @@ TARIFF_QUERY_TERMS = {
     "servicos",
     "tarifa",
     "tarifas",
+    "ted",
     "transferencia",
 }
 

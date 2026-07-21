@@ -182,7 +182,9 @@ def build_official_documents() -> list[KnowledgeDocument]:
 
         store = PostgresKnowledgeStore(settings.database_url, settings.knowledge_embedding_dimensions)
         store.sync(curated, source_chunks=web_documents + ingested)
-        store.sync_tariff_inventory(TariffCatalogLoader().load_inventory())
+        tariff_catalog = TariffCatalogLoader()
+        store.sync_tariff_inventory(tariff_catalog.load_inventory())
+        store.sync_tariff_entries(tariff_catalog.load_entries())
         return store.load_documents()
     curated_sources = {document.source for document in curated}
     legacy_documents = [

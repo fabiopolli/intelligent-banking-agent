@@ -5,15 +5,40 @@ from pathlib import Path
 
 
 TARIFF_INVENTORY_PATH = Path("knowledge/catalog/tariff_inventory.json")
+TARIFF_ENTRIES_PATH = Path("knowledge/catalog/tariff_entries.json")
 
 
 class TariffCatalogLoader:
-    def __init__(self, inventory_path: Path = TARIFF_INVENTORY_PATH) -> None:
+    def __init__(
+        self,
+        inventory_path: Path = TARIFF_INVENTORY_PATH,
+        entries_path: Path = TARIFF_ENTRIES_PATH,
+    ) -> None:
         self._inventory_path = inventory_path
+        self._entries_path = entries_path
 
     def load_inventory(self) -> dict:
         payload = json.loads(self._inventory_path.read_text(encoding="utf-8"))
         self._validate_inventory(payload)
+        return payload
+
+    def load_entries(self) -> dict:
+        payload = json.loads(self._entries_path.read_text(encoding="utf-8"))
+        entries = payload.get("entries", [])
+        identifiers = [entry.get("tariff_id") for entry in entries]
+        if not entries or any(not identifier for identifier in identifiers):
+            raise ValueError("Tariff entries require stable identifiers.")
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("Tariff identifiers must be unique.")
+        inventory = self.load_inventory()
+        valid_sections = {section["code"] for section in inventory["sections"]}
+        for entry in entries:
+            if entry.get("section_code") not in valid_sections:
+                raise ValueError(f"Unknown tariff section: {entry.get('section_code')}")
+            if not 1 <= int(entry.get("page_number", 0)) <= 25:
+                raise ValueError(f"Invalid tariff page: {entry.get('page_number')}")
+            if entry.get("status") == "published" and not entry.get("reviewed_at"):
+                raise ValueError(f"Published tariff {entry['tariff_id']} requires review date.")
         return payload
 
     def _validate_inventory(self, payload: dict) -> None:

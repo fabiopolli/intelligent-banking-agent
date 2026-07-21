@@ -29,3 +29,14 @@ def test_tariff_inventory_rejects_missing_pages(tmp_path) -> None:  # noqa: ANN0
 
     with pytest.raises(ValueError, match="exactly 25 pages"):
         TariffCatalogLoader(path).load_inventory()
+
+
+def test_published_tariffs_are_reviewed_and_cover_demo_categories() -> None:
+    entries = TariffCatalogLoader().load_entries()["entries"]
+
+    assert len(entries) >= 25
+    assert all(entry["reviewed_at"] for entry in entries if entry["status"] == "published")
+    assert {entry["category"] for entry in entries} >= {
+        "saque", "transferencias", "cartoes", "cheques", "investimentos"
+    }
+    assert any(entry.get("amount") == "11.10" and "TED" in entry["service_name"] for entry in entries)

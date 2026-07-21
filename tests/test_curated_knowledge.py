@@ -108,6 +108,35 @@ def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> No
     assert result["sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
 
 
+def test_structured_ted_answer_is_direct_and_does_not_call_llm() -> None:
+    class FailingSynthesizer:
+        provider_name = "must-not-run"
+
+        def synthesize(self, query, contexts):  # noqa: ANN001, ANN201
+            raise AssertionError("Structured tariff query must not call the LLM.")
+
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=FailingSynthesizer())
+
+    result = service.answer_with_trace("Quanto custa uma TED pelo app?")
+
+    assert "R$ 11,10" in result["message"]
+    assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
+    assert "grounded_faq_synthesizer" not in result["observability"]["tools_called"]
+
+
+def test_structured_cheque_and_fund_answers_use_published_values() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    cheque = service.answer_with_trace("Quanto custa uma folha de cheque?")
+    funds = service.answer_with_trace("Qual a taxa de administracao de fundos de investimento?")
+
+    assert "R$ 2,00" in cheque["message"]
+    assert "0,10%" in funds["message"]
+    assert "4,50%" in funds["message"]
+
+
 def test_investment_fees_answer_uses_curated_official_values() -> None:
     retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
     service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
