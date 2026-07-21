@@ -181,6 +181,18 @@ class TariffAnswerBuilder:
             ]
             if filtered:
                 entries = filtered
+        elif selected_intent == "saque" and "conta corrente" in normalized_query:
+            common_channels = ("presencial", "pessoal", "terminal", "correspondente")
+            entries = [
+                entry
+                for entry in entries
+                if any(
+                    channel in normalize_for_match(entry.get("delivery_channel", ""))
+                    for channel in common_channels
+                )
+                and "exterior" not in normalize_for_match(entry.get("delivery_channel", ""))
+                and "pix" not in normalize_for_match(entry.get("service_name", ""))
+            ]
         return entries[:6]
 
     def _specific_stems(self, text: str, intent: str) -> set[str]:
@@ -248,6 +260,12 @@ class TariffAnswerBuilder:
         else:
             message = "; ".join(descriptions)
             message = message[0].upper() + message[1:]
+        if entries[0]["category"] == "saque" and "conta corrente" in normalized_query:
+            return (
+                message
+                + ". A cobranca ocorre quando o saque excede a franquia do seu pacote. "
+                "Consulte a quantidade disponivel em 'tarifas e pacotes' no app."
+            )
         suffix = ". Valores avulsos podem nao ser cobrados quando o servico estiver incluido na sua franquia ou pacote."
         if entries[0]["category"] == "saque":
             suffix += (
@@ -336,13 +354,10 @@ class TariffAnswerBuilder:
         return TariffGuidance(
             page_hint="pagina 7",
             message=(
-                "Para saque em conta corrente, a tarifa avulsa e R$ 6,50 no atendimento presencial "
-                "ou terminal de autoatendimento, e R$ 2,25 em correspondente no pais. Os primeiros saques "
-                "previstos na quantidade mensal "
-                "do seu pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
-                "devem seguir os canais previstos, como caixas eletronicos e Banco24Horas. Pode haver "
-                "tarifa avulsa se voce ultrapassar a quantidade incluida ou usar um canal fora das regras. "
-                "Para validar sua franquia, consulte 'tarifas e pacotes' no app."
+                "Em conta corrente, o saque avulso custa R$ 6,50 no atendimento presencial ou no "
+                "terminal de autoatendimento e R$ 2,25 em correspondente no pais. A cobranca ocorre "
+                "quando o saque excede a franquia incluida no seu pacote. Voce pode consultar a "
+                "quantidade disponivel em 'tarifas e pacotes' no app."
             ),
         )
 

@@ -18,6 +18,7 @@ from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.service import GroundedKnowledgeService
 from frontend import ui_common
 from frontend.ops_dashboard import latest_audit_events
+from frontend.customer_chat import format_brl
 
 
 def test_curated_catalog_has_unique_versioned_product_records() -> None:
@@ -108,8 +109,16 @@ def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> No
     assert not result["message"].lower().startswith("claro")
     assert "R$ 6,50" in result["message"]
     assert "R$ 2,25" in result["message"]
+    assert "Pix Saque" not in result["message"]
+    assert "exterior" not in result["message"].lower()
+    assert len(result["message"]) < 430
     assert result["message"].endswith("Posso ajudar com mais alguma dúvida?")
     assert result["sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+
+
+def test_customer_chat_formats_hitl_currency_in_pt_br() -> None:
+    assert format_brl(15000) == "R$ 15.000,00"
+    assert format_brl(6000.5) == "R$ 6.000,50"
 
 
 def test_essential_services_package_uses_structured_official_composition() -> None:

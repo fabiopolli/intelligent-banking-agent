@@ -441,6 +441,7 @@ Checklist rápido:
 - consulta de limite
 - aumento de limite multi-turno com consulta de perfil, politica de elegibilidade, confirmacao explicita e auditoria `LIMIT_CHANGE`
 - bloqueio de aumento quando falta valor, quando o cartao nao esta ativo, quando o novo limite nao aumenta o atual ou quando excede a politica simulada
+- respostas de saque em conta corrente priorizam canais comuns e a franquia do pacote; Pix Saque e exterior aparecem apenas quando perguntados
 - bloqueio de cartão por emergência
 - manutenção de estado do cartão no mock interno
 - emissão de eventos de auditoria para operações críticas

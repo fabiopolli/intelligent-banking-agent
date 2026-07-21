@@ -37,6 +37,11 @@ DEMO_PROFILES = {
 }
 
 
+def format_brl(value: float) -> str:
+    rendered = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {rendered}"
+
+
 def render_sidebar() -> tuple[str, str, str, str] | None:
     st.sidebar.header("Atendimento")
     api_url = st.sidebar.text_input("API URL", value=DEFAULT_API_URL)
@@ -128,7 +133,7 @@ def render_customer_action() -> None:
             amount = pix_details.get("amount")
             destination_key = pix_details.get("destination_key")
             detail_lines = (
-                f"<br>Valor: <strong>R$ {float(amount):.2f}</strong>"
+                f"<br>Valor: <strong>{format_brl(float(amount))}</strong>"
                 if amount is not None
                 else ""
             )
@@ -138,16 +143,15 @@ def render_customer_action() -> None:
             current_limit = limit_details.get("current_limit")
             requested_limit = limit_details.get("requested_limit")
             if current_limit is not None:
-                detail_lines += f"<br>Limite atual: <strong>R$ {float(current_limit):.2f}</strong>"
+                detail_lines += f"<br>Limite atual: <strong>{format_brl(float(current_limit))}</strong>"
             if requested_limit is not None:
-                detail_lines += f"<br>Novo limite: <strong>R$ {float(requested_limit):.2f}</strong>"
+                detail_lines += f"<br>Novo limite: <strong>{format_brl(float(requested_limit))}</strong>"
         st.markdown(
             f"""
             <div class="confirm-band">
                 <strong>Confirmacao necessaria</strong><br>
                 Esta operacao sensivel foi pausada.{detail_lines}<br>
-                Para esta demo, envie <code>confirmo</code>
-                para simular uma autenticacao adicional no app.
+                Envie <code>confirmo</code> para concluir a autenticacao adicional.
             </div>
             """,
             unsafe_allow_html=True,
