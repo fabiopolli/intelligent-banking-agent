@@ -59,6 +59,9 @@ class TariffAnswerBuilder:
             "investimentos": ("fundo", "fundos", "investimento", "investimentos"),
             "ordem_pagamento": ("ordem de pagamento",),
             "transferencias": ("transferencia", "transferencias"),
+            "cobranca": ("cobranca", "cobrancas", "boleto", "titulo", "protesto", "negativacao"),
+            "credito": ("credito", "emprestimo", "garantia", "rural"),
+            "cambio": ("cambio", "importacao", "exportacao", "ccme", "moeda estrangeira"),
         }
         selected_intent = next(
             (name for name, terms in intents.items() if any(term in normalized_query for term in terms)),
@@ -104,11 +107,15 @@ class TariffAnswerBuilder:
         descriptions = []
         for entry in entries:
             if entry["value_type"] == "fixed":
-                value = self._format_brl(entry["amount"])
+                value = self._format_money(entry["amount"], entry.get("currency", "BRL"))
             elif entry["value_type"] == "maximum":
                 value = f"até {self._format_brl(entry['maximum_amount'])}"
             elif entry["value_type"] == "percentage_range":
                 value = f"de {self._format_percent(entry['percentage_min'])} a {self._format_percent(entry['percentage_max'])}"
+            elif entry["value_type"] == "percentage_maximum":
+                value = f"até {self._format_percent(entry['percentage_max'])}"
+            elif entry["value_type"] == "amount_range":
+                value = f"de {self._format_brl(entry['minimum_amount'])} a {self._format_brl(entry['maximum_amount'])}"
             else:
                 continue
             channel = entry.get("delivery_channel", "").strip()
@@ -135,6 +142,13 @@ class TariffAnswerBuilder:
     def _format_brl(self, value: str) -> str:
         number = float(value)
         return f"R$ {number:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _format_money(self, value: str, currency: str) -> str:
+        if currency == "USD":
+            number = float(value)
+            rendered = f"{number:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            return f"US$ {rendered}"
+        return self._format_brl(value)
 
     def _format_percent(self, value: str) -> str:
         return f"{float(value):.2f}%".replace(".", ",")

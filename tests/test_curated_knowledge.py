@@ -137,6 +137,22 @@ def test_structured_cheque_and_fund_answers_use_published_values() -> None:
     assert "4,50%" in funds["message"]
 
 
+def test_structured_credit_collection_and_fx_answers_are_direct() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    collection = service.answer_with_trace("Qual a tarifa de cobranca sem registro?")
+    credit = service.answer_with_trace("Quanto custa avaliar garantia de imovel para emprestimo?")
+    fx = service.answer_with_trace("Quanto custa contratar cambio pela mesa?")
+
+    assert "R$ 10,50" in collection["message"]
+    assert "R$ 3.420,00" in credit["message"]
+    assert "R$ 650,00" in fx["message"]
+    assert collection["observability"]["llm"]["provider"] == "disabled"
+    assert credit["observability"]["llm"]["provider"] == "disabled"
+    assert fx["observability"]["llm"]["provider"] == "disabled"
+
+
 def test_investment_fees_answer_uses_curated_official_values() -> None:
     retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
     service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
