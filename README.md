@@ -144,6 +144,8 @@ de `DEMO_CUSTOMER_TOKEN`, `DEMO_MANAGER_TOKEN` e `DEMO_ADMIN_TOKEN`, são valida
 aparecem na interface. A API deriva `principal_id`, cliente próprio, papel e scopes exclusivamente do
 token; o campo `role` do body não concede autoridade. Se o chat retornar `403`, recrie API e chat
 juntos para que ambos recebam o mesmo `.env`: `docker compose up -d --force-recreate api customer-chat`.
+Quando a negação for legítima, o chat converte o `403` em orientação amigável de autorização; o
+detalhe técnico e o evento `ACCESS_DENIED` permanecem apenas na API, auditoria e dashboard.
 
 Na demo, o cliente `123` acessa somente a própria conta, o gerente possui leitura de clientes e o
 administrador possui leitura e operações. Expressões explícitas como `cliente 456` são resolvidas em

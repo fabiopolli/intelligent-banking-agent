@@ -246,6 +246,8 @@ def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  #
     captured = {}
 
     class Response:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 
@@ -265,6 +267,29 @@ def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  #
     assert timeout.connect == 3.0
     assert captured["headers"] == {"X-Demo-Auth-Token": "trusted-token"}
     assert "role" not in captured["json"]
+
+
+def test_chat_client_turns_403_into_customer_safe_authorization_message(monkeypatch) -> None:  # noqa: ANN001
+    class Response:
+        status_code = 403
+
+        def raise_for_status(self) -> None:
+            raise AssertionError("403 should be handled before raising")
+
+    monkeypatch.setattr(ui_common.httpx, "post", lambda *args, **kwargs: Response())
+
+    result = ui_common.send_chat_message(
+        "http://api",
+        "authorization-session",
+        "456",
+        "customer-token",
+        "Qual o saldo?",
+    )
+
+    assert result["route"] == "authorization_denied"
+    assert "nao tem autorizacao" in result["message"].lower()
+    assert "403" not in result["message"]
+    assert result["observability"]["authorization"]["allowed"] is False
 
 
 def test_dashboard_limits_visible_audit_to_three_latest_events() -> None:

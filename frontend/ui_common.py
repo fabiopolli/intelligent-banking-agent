@@ -191,6 +191,16 @@ def send_chat_message(
         },
         timeout=httpx.Timeout(CHAT_REQUEST_TIMEOUT_SECONDS, connect=3.0),
     )
+    if response.status_code == 403:
+        return {
+            "route": "authorization_denied",
+            "session_id": session_id,
+            "message": (
+                "Por seguranca, voce nao tem autorizacao para consultar ou movimentar esta conta. "
+                "Confira o cliente selecionado ou entre com um perfil autorizado."
+            ),
+            "observability": {"authorization": {"allowed": False}},
+        }
     response.raise_for_status()
     return response.json()
 
