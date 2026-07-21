@@ -8,7 +8,6 @@ from app.schemas.messages import ChatRequest
 from app.schemas.outbound import CardLimitUpdateRequest, PixCreateRequest
 from app.security.rbac import RBACService
 from app.services.customer_support import CustomerSupportService
-from app.services.knowledge_base import GroundedKnowledgeService, knowledge_service
 from app.services.mock_bank import mock_bank_service
 from app.services.observability import traceable
 from app.services.response_builder import ResponseBuilder
@@ -156,22 +155,33 @@ class FaqNode:
     def __init__(
         self,
         response_builder: ResponseBuilder,
-        grounded_knowledge: GroundedKnowledgeService,
+        internal_systems: InternalSystemsGateway,
     ) -> None:
         self._response_builder = response_builder
-        self._grounded_knowledge = grounded_knowledge
+        self._internal_systems = internal_systems
 
     def handle(self, payload: ChatRequest) -> HarnessResponse:
         return self._handle(payload)
 
     @traceable(name="Grounded Knowledge Node", run_type="retriever")
     def _handle(self, payload: ChatRequest) -> HarnessResponse:
-        answer = self._grounded_knowledge.answer_with_trace(payload.message)
+        answer = self._internal_systems.search_official_knowledge(payload.message)
+        observability = dict(answer["observability"])
+        trace = dict(self._internal_systems.last_trace)
+        tools_called = list(observability.get("tools_called") or [])
+        tools_called.append(f"{trace.get('transport')}.{trace.get('tool')}")
+        observability["tools_called"] = tools_called
+        observability["mcp"] = (
+            [trace] if trace.get("transport") == "mcp-streamable-http" else []
+        )
+        timings = dict(observability.get("timings") or {})
+        timings["mcp_total_ms"] = trace.get("duration_ms", 0)
+        observability["timings"] = timings
         return self._response_builder.grounded_knowledge(
             payload.session_id,
             answer["message"],
             answer["sources"],
-            answer["observability"],
+            observability,
         )
 
 
@@ -180,17 +190,17 @@ class DemoOrchestrator:
         self,
         response_builder: ResponseBuilder,
         rbac_service: RBACService,
-        grounded_knowledge: GroundedKnowledgeService | None = None,
         internal_systems: InternalSystemsGateway | None = None,
     ) -> None:
+        systems = internal_systems or build_internal_systems_gateway()
         self._emergency = EmergencyNode(response_builder, rbac_service)
         self._core_banking = CoreBankingNode(
             response_builder,
             rbac_service,
-            internal_systems or build_internal_systems_gateway(),
+            systems,
         )
         self._transaction = TransactionNode(response_builder, rbac_service)
-        self._faq = FaqNode(response_builder, grounded_knowledge or knowledge_service)
+        self._faq = FaqNode(response_builder, systems)
 
     def emergency(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         return self._emergency.handle(payload, auth)

@@ -132,6 +132,24 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
                 available_limit=1000,
             )
 
+        def search_official_knowledge(self, query: str) -> dict:
+            self.calls.append(("search_tariff_knowledge", query))
+            self.last_trace = {
+                "tool": "search_tariff_knowledge",
+                "transport": "mcp-streamable-http",
+                "status": "success",
+                "duration_ms": 5,
+            }
+            return {
+                "message": "Resposta oficial estruturada.",
+                "sources": ["official-source"],
+                "observability": {
+                    "tools_called": ["hybrid_retrieve"],
+                    "llm": {"provider": "disabled"},
+                    "timings": {"retrieval_ms": 1},
+                },
+            }
+
     gateway = RecordingGateway()
     monkeypatch.setattr(
         mock_bank_service,
@@ -163,6 +181,20 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
     assert limit_result["observability"]["tools_called"] == [
         "mcp-streamable-http.get_card_limit"
     ]
+
+    faq_result = DemoHarness(
+        router=DeterministicPlanner(),
+        internal_systems=gateway,
+    ).handle_message(
+        ChatRequest(session_id="mcp-gateway-faq", customer_id="123", message="Qual a tarifa de saque?")
+    )
+    assert gateway.calls[-1] == ("search_tariff_knowledge", "Qual a tarifa de saque?")
+    assert faq_result["grounding_sources"] == ["official-source"]
+    assert faq_result["observability"]["tools_called"] == [
+        "hybrid_retrieve",
+        "mcp-streamable-http.search_tariff_knowledge",
+    ]
+    assert faq_result["observability"]["mcp"][0]["status"] == "success"
 
 
 def test_mcp_gateway_failure_is_controlled_and_does_not_trace_credentials(monkeypatch) -> None:  # noqa: ANN001

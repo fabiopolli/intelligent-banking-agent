@@ -329,6 +329,10 @@ representam adapters dos sistemas bancarios simulados. Em pytest/local isolado, 
 implementa o mesmo contrato. Se MCP falhar no modo Compose, a leitura retorna indisponibilidade controlada;
 nao existe fallback silencioso para acesso direto.
 
+A busca documental usa o mesmo gateway: `search_tariff_knowledge` devolve resposta, fontes, retrieval,
+provider e tempos pelo MCP. O PostgreSQL/pgvector e uma escolha equivalente para o item KB; OpenSearch,
+FAISS e Chroma aparecem como opcoes, nao como dependencias obrigatorias do desafio.
+
 Para rodar o servidor MCP real fora do Compose:
 
 ```powershell

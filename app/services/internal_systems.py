@@ -20,6 +20,8 @@ class InternalSystemsGateway(Protocol):
 
     def get_account_balance(self, customer_id: str) -> BalanceResponse | None: ...
 
+    def search_official_knowledge(self, query: str) -> dict: ...
+
 
 class InternalSystemsUnavailable(RuntimeError):
     pass
@@ -45,6 +47,14 @@ class LocalInternalSystemsGateway:
         started_at = time.perf_counter()
         result = mock_bank_service.get_customer_profile(customer_id)
         self.last_trace = self._trace("get_card_limit", started_at)
+        return result
+
+    def search_official_knowledge(self, query: str) -> dict:
+        from app.services.knowledge.service import knowledge_service
+
+        started_at = time.perf_counter()
+        result = knowledge_service.answer_with_trace(query)
+        self.last_trace = self._trace("search_tariff_knowledge", started_at)
         return result
 
     @staticmethod
@@ -82,6 +92,9 @@ class McpInternalSystemsGateway:
             {"auth_token": current_trusted_auth_token(), "target_customer_id": customer_id},
         )
         return CustomerProfileResponse.model_validate(payload)
+
+    def search_official_knowledge(self, query: str) -> dict:
+        return self._call_tool("search_tariff_knowledge", {"query": query})
 
     def _call_tool(self, tool: str, arguments: dict) -> dict:
         started_at = time.perf_counter()
