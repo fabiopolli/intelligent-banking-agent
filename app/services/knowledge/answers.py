@@ -11,7 +11,11 @@ from app.services.knowledge.tokenization import normalize_for_match, tokenize
 class TariffAnswerBuilder:
     def __init__(self, documents: list[KnowledgeDocument], entries: list[dict] | None = None) -> None:
         self._documents = documents
-        self._entries = entries if entries is not None else TariffCatalogLoader().load_entries()["entries"]
+        catalog = TariffCatalogLoader()
+        self._entries = entries if entries is not None else catalog.load_entries()["entries"]
+        auxiliary = catalog.load_auxiliary()
+        self._packages = auxiliary["packages"]
+        self._package_items = auxiliary["package_items"]
 
     def build(self, query: str, primary: RetrievedKnowledge) -> str:
         page_hint = self._extract_page_hint(primary.title)
@@ -25,6 +29,10 @@ class TariffAnswerBuilder:
                 "Para consultar o valor vigente, acesse 'tarifas e pacotes' no app Itaú "
                 "ou fale com um especialista."
             )
+
+        package_answer = self._find_package_answer(normalized_query)
+        if package_answer is not None:
+            return package_answer
 
         structured = self._find_structured_entries(normalized_query)
         if structured:
@@ -53,6 +61,49 @@ class TariffAnswerBuilder:
             "Para eu te orientar melhor no chat, me diga o contexto: conta corrente, poupanca, "
             "terminal Itau, Banco24Horas ou outro canal."
         )
+
+    def _find_package_answer(self, normalized_query: str) -> str | None:
+        if "pacote essencial" not in normalized_query and "servicos essenciais" not in normalized_query:
+            return None
+        package = next(
+            (
+                item
+                for item in self._packages
+                if item["package_id"] == "package-servicos-essenciais"
+                and item.get("status") == "published"
+            ),
+            None,
+        )
+        if package is None:
+            return None
+
+        items = [
+            item
+            for item in self._package_items
+            if item["package_id"] == package["package_id"]
+        ]
+        rendered_items = [self._format_package_item(item) for item in items]
+        monthly_fee = self._format_brl(package["monthly_fee"])
+        fee_description = "não tem mensalidade" if float(package["monthly_fee"]) == 0 else f"custa {monthly_fee} por mês"
+        included = "; ".join(rendered_items[:-1]) + f"; e {rendered_items[-1]}"
+        return (
+            f"O pacote de {package['name']} para conta corrente {fee_description}. "
+            f"Ele inclui {included}. Serviços que excederem essas quantidades podem seguir a "
+            "tarifa avulsa aplicável."
+        )
+
+    @staticmethod
+    def _format_package_item(item: dict) -> str:
+        quantity = item.get("included_quantity") or "quantidade não informada"
+        service = item["service_name"].lower()
+        if str(quantity) != "1":
+            service = {
+                "extrato mensal": "extratos mensais",
+                "transferência entre contas itaú": "transferências entre contas Itaú",
+            }.get(service, service)
+        period = item.get("conditions", {}).get("period")
+        suffix = " por mês" if period == "mensal" else (f" por {period}" if period else "")
+        return f"{quantity} {service}{suffix}"
 
     def _find_structured_entries(self, normalized_query: str) -> list[dict]:
         intents = {

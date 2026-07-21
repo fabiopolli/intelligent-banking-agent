@@ -17,6 +17,7 @@ from app.services.knowledge.embedding import DeterministicTokenEmbedding
 from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.service import GroundedKnowledgeService
 from frontend import ui_common
+from frontend.ops_dashboard import latest_audit_events
 
 
 def test_curated_catalog_has_unique_versioned_product_records() -> None:
@@ -109,6 +110,21 @@ def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> No
     assert "R$ 2,25" in result["message"]
     assert result["message"].endswith("Posso ajudar com mais alguma dúvida?")
     assert result["sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+
+
+def test_essential_services_package_uses_structured_official_composition() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace("Me fale sobre o pacote essencial para conta corrente")
+
+    assert "não tem mensalidade" in result["message"]
+    assert "10 folhas de cheque por mês" in result["message"]
+    assert "4 saques" in result["message"]
+    assert "2 extratos mensais" in result["message"]
+    assert "2 transferências entre contas itaú" in result["message"].lower()
+    assert "diga o servico e o canal" not in result["message"].lower()
+    assert result["observability"]["llm"]["provider"] == "disabled"
 
 
 def test_structured_ted_answer_is_direct_and_does_not_call_llm() -> None:
@@ -249,6 +265,15 @@ def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  #
     assert timeout.connect == 3.0
     assert captured["headers"] == {"X-Demo-Auth-Token": "trusted-token"}
     assert "role" not in captured["json"]
+
+
+def test_dashboard_limits_visible_audit_to_three_latest_events() -> None:
+    events = [{"event_id": str(index)} for index in range(1, 8)]
+
+    visible = latest_audit_events(events)
+
+    assert [event["event_id"] for event in visible] == ["7", "6", "5"]
+    assert len(events) == 7
 
 
 def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001

@@ -696,6 +696,31 @@ def test_documental_tariff_context_followup_reuses_previous_question() -> None:
     assert "pagina" not in body["message"].lower()
 
 
+def test_essential_package_multiturn_does_not_repeat_generic_tariff_prompt() -> None:
+    session_id = "sess-essential-package-memory"
+    messages = [
+        "Me fala sobre tarifas da conta corrente, por favor.",
+        "Pacote essencial.",
+        "Me fala sobre o pacote essencial para conta corrente.",
+    ]
+
+    responses = [
+        client.post(
+            "/v1/channels/app/chat",
+            json={"session_id": session_id, "customer_id": "123", "message": message},
+        )
+        for message in messages
+    ]
+
+    assert all(response.status_code == 200 for response in responses)
+    for response in responses[1:]:
+        message = response.json()["message"]
+        assert "não tem mensalidade" in message
+        assert "4 saques" in message
+        assert "diga o servico e o canal" not in message.lower()
+        assert response.json()["observability"]["llm"]["provider"] == "disabled"
+
+
 def test_documental_memory_does_not_overwrite_pending_pix_checkpoint(tmp_path) -> None:  # noqa: ANN001
     store = CheckpointStore(tmp_path / "checkpoints.json")
     store.save_pending_pix(

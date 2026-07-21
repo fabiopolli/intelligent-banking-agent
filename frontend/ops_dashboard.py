@@ -19,6 +19,13 @@ from frontend.ui_common import (
 )
 
 
+MAX_VISIBLE_AUDIT_EVENTS = 3
+
+
+def latest_audit_events(events: list[dict]) -> list[dict]:
+    return list(reversed(events[-MAX_VISIBLE_AUDIT_EVENTS:]))
+
+
 def render_sidebar() -> tuple[str, str, str]:
     st.sidebar.header("Inspector")
     api_url = st.sidebar.text_input("API URL", value=DEFAULT_API_URL)
@@ -77,8 +84,11 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     third.metric("Sources", source_count)
     fourth.metric("Tools", len(tools_called))
     fifth, sixth = st.columns(2)
-    fifth.metric("Planner", planner.get("provider") or "disabled")
+    planner_provider = planner.get("provider") or "Not used this turn"
+    fifth.metric("LLM Planner", planner_provider)
     sixth.metric("Fallback", "Yes" if planner.get("fallback_used") else "No")
+    if not planner:
+        st.caption("Native Harness continuation: this turn did not require LLM intent planning.")
 
     pending = trace.get("pending_operation")
     if hitl.get("status") == "completed":
@@ -181,7 +191,8 @@ def render_audit_panel(api_url: str, customer_id: str) -> None:
         return
 
     st.metric("Events", len(events))
-    for event in reversed(events[-8:]):
+    st.caption(f"Showing the latest {min(len(events), MAX_VISIBLE_AUDIT_EVENTS)} events.")
+    for event in latest_audit_events(events):
         with st.expander(f"{event['event_type']} | {event['timestamp']}", expanded=False):
             st.json(event)
 

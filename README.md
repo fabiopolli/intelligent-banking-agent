@@ -428,9 +428,12 @@ Checklist rápido:
 - o último trace e o histórico da sessão podem ser consultados pelo painel via `/v1/mcp/trace/{session_id}`
 - PIX de alto valor preserva os eventos HITL `created`, `resumed` e `completed` com um único
   `correlation_id`, timestamps e duração do ciclo
+- o dashboard identifica o componente como `LLM Planner`; confirmações HITL mostram
+  `Not used this turn`, pois o Harness retoma o checkpoint diretamente sem nova classificação LLM
 - spans LangSmith opcionais instrumentam Harness, roteamento, nós, PIX, HITL e RAG
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
+- a métrica preserva o total de eventos persistidos, enquanto a lista mostra somente os três mais recentes
 - o trace tecnico separa planner e compositor e mostra capability proposta, rota, prompt version/hash, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo
 - o painel técnico usa refresh manual para reduzir ruído durante a apresentação
 
@@ -442,6 +445,8 @@ Checklist rápido:
 - caso de consignado INSS para aposentados e pensionistas com abstencao de taxa nao sustentada
 - PDF local de tarifas ingerido em chunks com cache em `.runtime/knowledge_tariff_chunks.json`
 - respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
+- perguntas sobre Serviços Essenciais usam a composição estruturada de `service_packages` e
+  `package_items`, incluindo mensalidade e quantidades, sem cair em loop de esclarecimento
 - respostas documentais terminam com um convite breve para o cliente continuar a conversa
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
