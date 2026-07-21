@@ -38,7 +38,7 @@ class EmergencyNode:
 
     @traceable(name="Emergency Node", run_type="tool")
     def _handle(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        self._rbac_service.validate_owner_access(auth, payload.customer_id, "write")
         mock_bank_service.block_card(payload.customer_id)
         profile = mock_bank_service.get_customer_profile(payload.customer_id)
         return self._response_builder.emergency(
@@ -57,7 +57,7 @@ class CoreBankingNode:
 
     @traceable(name="Core Banking Limit Node", run_type="tool")
     def _handle_limit(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        self._rbac_service.validate_owner_access(auth, payload.customer_id, "read")
         profile = mock_bank_service.get_customer_profile(payload.customer_id)
         return self._response_builder.limit(
             payload.session_id,
@@ -69,7 +69,7 @@ class CoreBankingNode:
 
     @traceable(name="Core Banking Balance Node", run_type="tool")
     def _handle_balance(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        self._rbac_service.validate_owner_access(auth, payload.customer_id, "read")
         balance = mock_bank_service.get_balance(payload.customer_id)
         return self._response_builder.balance(
             payload.session_id,
@@ -110,7 +110,7 @@ class TransactionNode:
         auth: AuthContext,
         pending_operation: PendingPixOperation,
     ) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, pending_operation.customer_id)
+        self._rbac_service.validate_owner_access(auth, pending_operation.customer_id, "write")
         return self.execute_pix(
             payload.session_id,
             PixCreateRequest(

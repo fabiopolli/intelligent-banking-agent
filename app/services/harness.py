@@ -40,7 +40,12 @@ class DemoHarness:
         self._checkpoints = checkpoints or checkpoint_store
 
     def handle_message(self, payload: ChatRequest, auth: AuthContext | None = None) -> dict:
-        trusted_auth = auth or AuthContext(customer_id=payload.customer_id, role=payload.role)
+        trusted_auth = auth or AuthContext(
+            principal_id=payload.customer_id,
+            customer_id=payload.customer_id,
+            role="customer",
+            scopes=("customer:self",),
+        )
         response = self._handle_message(payload, trusted_auth)
         response_payload = response.model_dump()
         trace_store.record(payload.session_id, response_payload)
@@ -92,7 +97,16 @@ class DemoHarness:
         return self._router.classify(message)
 
     def _dispatch(self, route: str, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        access = "read"
+        if route in {"transaction", "emergency"}:
+            access = "write"
+        elif route == "core_banking_limit" and (
+            self._is_limit_increase_request(payload.message)
+            or self._checkpoints.get_limit_draft(payload.session_id) is not None
+        ):
+            access = "write"
+        if route != "faq_fast_path":
+            self._rbac_service.validate_owner_access(auth, payload.customer_id, access)
         if route == "transaction":
             pix_request = self._build_pix_request(payload)
             if pix_request is None:
@@ -166,13 +180,14 @@ class DemoHarness:
         self._rbac_service.validate_owner_access(
             auth,
             pending_limit.customer_id,
+            "write",
         )
         response = self._orchestrator.limit_update_execute(payload.session_id, pending_limit)
         self._checkpoints.consume_pending_limit(payload.session_id)
         return response
 
     def _handle_limit_increase(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
-        self._rbac_service.validate_owner_access(auth, payload.customer_id)
+        self._rbac_service.validate_owner_access(auth, payload.customer_id, "write")
         profile = CustomerSupportService.require_profile(mock_bank_service.get_customer_profile(payload.customer_id))
         requested_limit = self._extract_amount(payload.message)
         if requested_limit is None:

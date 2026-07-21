@@ -11,6 +11,9 @@ DEFAULT_SESSION_ID = "demo-session-001"
 DEFAULT_CUSTOMER_ID = "123"
 DEFAULT_INTERNAL_TOOL_KEY = os.getenv("INTERNAL_TOOL_API_KEY", "demo-internal-tool-key")
 DEFAULT_DEMO_AUTH_TOKEN = os.getenv("DEMO_AUTH_TOKEN", "demo-customer-123-token")
+DEMO_CUSTOMER_TOKEN = os.getenv("DEMO_CUSTOMER_TOKEN", DEFAULT_DEMO_AUTH_TOKEN)
+DEMO_MANAGER_TOKEN = os.getenv("DEMO_MANAGER_TOKEN", "demo-manager-token")
+DEMO_ADMIN_TOKEN = os.getenv("DEMO_ADMIN_TOKEN", "demo-admin-token")
 
 PROMPTS = {
     "Tarifas": "Onde consulto tarifas e pacotes de servicos?",
@@ -161,14 +164,29 @@ def render_header(title: str, caption: str) -> None:
     )
 
 
-def send_chat_message(api_url: str, session_id: str, customer_id: str, role: str, message: str) -> dict:
+def authenticate_demo_identity(api_url: str, auth_token: str) -> dict:
+    response = httpx.get(
+        f"{api_url}/auth/demo/session",
+        headers={"X-Demo-Auth-Token": auth_token},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def send_chat_message(
+    api_url: str,
+    session_id: str,
+    customer_id: str,
+    auth_token: str,
+    message: str,
+) -> dict:
     response = httpx.post(
         f"{api_url}/channels/app/chat",
-        headers={"X-Demo-Auth-Token": DEFAULT_DEMO_AUTH_TOKEN},
+        headers={"X-Demo-Auth-Token": auth_token},
         json={
             "session_id": session_id,
             "customer_id": customer_id,
-            "role": role,
             "message": message,
         },
         timeout=httpx.Timeout(CHAT_REQUEST_TIMEOUT_SECONDS, connect=3.0),

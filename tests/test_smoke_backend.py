@@ -28,6 +28,10 @@ client = TestClient(app)
 INTERNAL_TOOL_HEADERS = {"X-Internal-Tool-Key": settings.internal_tool_api_key}
 
 
+def _demo_auth_headers(token: str) -> dict[str, str]:
+    return {"X-Demo-Auth-Token": token}
+
+
 class RecordingSynthesizer:
     provider_name = "fake-recording"
 
@@ -63,6 +67,119 @@ def test_chat_balance_smoke() -> None:
     trace_response = client.get("/v1/mcp/trace/sess-1", headers=INTERNAL_TOOL_HEADERS)
     assert trace_response.status_code == 200
     assert trace_response.json()["trace"]["route"] == "core_banking"
+
+
+def test_demo_login_returns_identity_derived_from_token(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+
+    response = client.get(
+        "/v1/auth/demo/session",
+        headers=_demo_auth_headers(settings.demo_manager_token),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "principal_id": "manager-demo",
+        "customer_id": None,
+        "role": "manager",
+        "scopes": ["customer:any:read"],
+    }
+
+
+def test_demo_login_rejects_unknown_token(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+
+    response = client.get(
+        "/v1/auth/demo/session",
+        headers=_demo_auth_headers("invalid-demo-token"),
+    )
+
+    assert response.status_code == 403
+    assert "invalida" in response.json()["detail"].lower()
+
+
+def test_customer_cannot_spoof_role_or_access_another_customer(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+
+    response = client.post(
+        "/v1/channels/app/chat",
+        headers=_demo_auth_headers(settings.demo_customer_token),
+        json={
+            "session_id": "sess-customer-idor",
+            "customer_id": "456",
+            "role": "admin",
+            "message": "Qual o saldo?",
+        },
+    )
+
+    assert response.status_code == 403
+    assert "cliente nao autorizado" in response.json()["detail"].lower()
+
+
+def test_manager_can_read_natural_language_target_but_cannot_write(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+    headers = _demo_auth_headers(settings.demo_manager_token)
+
+    balance_response = client.post(
+        "/v1/channels/app/chat",
+        headers=headers,
+        json={
+            "session_id": "sess-manager-read",
+            "customer_id": "123",
+            "role": "customer",
+            "message": "Qual o saldo do cliente 456?",
+        },
+    )
+    pix_response = client.post(
+        "/v1/channels/app/chat",
+        headers=headers,
+        json={
+            "session_id": "sess-manager-write",
+            "customer_id": "123",
+            "message": "Faça um pix de 100 do cliente 456 para chave pix qa@example.com",
+        },
+    )
+
+    assert balance_response.status_code == 200
+    assert "R$ 8000.00" in balance_response.json()["message"]
+    assert pix_response.status_code == 403
+    assert "customer:any:write" in pix_response.json()["detail"]
+    assert mock_bank_service.get_balance("456").balance == 8000.0
+
+
+def test_admin_scope_allows_write_for_natural_language_target(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+
+    response = client.post(
+        "/v1/channels/app/chat",
+        headers=_demo_auth_headers(settings.demo_admin_token),
+        json={
+            "session_id": "sess-admin-write",
+            "customer_id": "123",
+            "message": "Faça um pix de 100 do cliente 456 para chave pix admin@example.com",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["balance"] == 7900.0
+
+
+def test_sensitive_credential_is_blocked_before_target_resolution(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "demo_auth_required", True)
+
+    response = client.post(
+        "/v1/channels/app/chat",
+        headers=_demo_auth_headers(settings.demo_customer_token),
+        json={
+            "session_id": "sess-sensitive-before-target",
+            "customer_id": "123",
+            "message": "Consulte o cliente 456 usando meu iToken 123456",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["observability"]["guardrails"]["blocked"] is True
+    assert response.json()["observability"]["planner"]["provider"] == "not_called"
 
 
 def test_internal_mcp_endpoints_require_tool_key() -> None:

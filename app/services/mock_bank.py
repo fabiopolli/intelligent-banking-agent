@@ -36,7 +36,16 @@ class MockBankService:
                 card_limit=10000.0,
                 available_limit=10000.0,
                 balance=25000.0,
-            )
+            ),
+            "456": CustomerState(
+                customer_id="456",
+                name="Cliente Demo",
+                segment="Uniclass",
+                card_status="ACTIVE",
+                card_limit=5000.0,
+                available_limit=5000.0,
+                balance=8000.0,
+            ),
         }
         self._customers = deepcopy(self._baseline)
 

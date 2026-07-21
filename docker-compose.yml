@@ -92,6 +92,9 @@ services:
       INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
       DEFAULT_API_URL: http://api:8000/v1
       DEMO_AUTH_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_CUSTOMER_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_MANAGER_TOKEN: ${DEMO_MANAGER_TOKEN:-demo-manager-token}
+      DEMO_ADMIN_TOKEN: ${DEMO_ADMIN_TOKEN:-demo-admin-token}
     command:
       - streamlit
       - run

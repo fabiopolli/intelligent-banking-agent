@@ -7,5 +7,7 @@ UserRole = Literal["customer", "manager", "admin"]
 
 
 class AuthContext(BaseModel):
-    customer_id: str
+    principal_id: str
+    customer_id: str | None = None
     role: UserRole = "customer"
+    scopes: tuple[str, ...] = ()

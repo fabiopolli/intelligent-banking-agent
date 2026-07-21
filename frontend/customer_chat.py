@@ -8,7 +8,11 @@ from frontend.ui_common import (
     DEFAULT_API_URL,
     DEFAULT_CUSTOMER_ID,
     DEFAULT_SESSION_ID,
+    DEMO_ADMIN_TOKEN,
+    DEMO_CUSTOMER_TOKEN,
+    DEMO_MANAGER_TOKEN,
     PROMPTS,
+    authenticate_demo_identity,
     configure_page,
     render_header,
     send_chat_message,
@@ -20,15 +24,53 @@ def init_state() -> None:
     st.session_state.setdefault("selected_prompt", PROMPTS["Tarifas"])
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_latency_ms", None)
+    st.session_state.setdefault("demo_identity", None)
+    st.session_state.setdefault("demo_profile", "customer")
 
 
-def render_sidebar() -> tuple[str, str, str, str]:
+DEMO_PROFILES = {
+    "customer": ("Cliente — Fabio (123)", DEMO_CUSTOMER_TOKEN),
+    "manager": ("Gerente — leitura de clientes", DEMO_MANAGER_TOKEN),
+    "admin": ("Administrador — leitura e operações", DEMO_ADMIN_TOKEN),
+}
+
+
+def render_sidebar() -> tuple[str, str, str, str] | None:
     st.sidebar.header("Atendimento")
     api_url = st.sidebar.text_input("API URL", value=DEFAULT_API_URL)
+    identity = st.session_state.get("demo_identity")
+    if identity is None:
+        profile_key = st.sidebar.selectbox(
+            "Perfil de demonstração",
+            options=list(DEMO_PROFILES),
+            format_func=lambda key: DEMO_PROFILES[key][0],
+        )
+        if st.sidebar.button("Entrar na demo", type="primary", use_container_width=True):
+            try:
+                identity = authenticate_demo_identity(api_url, DEMO_PROFILES[profile_key][1])
+                st.session_state["demo_identity"] = identity
+                st.session_state["demo_profile"] = profile_key
+                st.rerun()
+            except Exception as exc:  # noqa: BLE001
+                st.sidebar.error(f"Falha na autenticação da demo: {exc}")
+        return None
+
+    profile_key = st.session_state["demo_profile"]
+    st.sidebar.success(f"Identidade: {identity['principal_id']} ({identity['role']})")
+    if st.sidebar.button("Sair da demo", use_container_width=True):
+        st.session_state.clear()
+        st.rerun()
+
     session_id = st.sidebar.text_input("Session ID", value=DEFAULT_SESSION_ID)
-    customer_id = st.sidebar.text_input("Customer ID", value=DEFAULT_CUSTOMER_ID)
-    role = st.sidebar.selectbox("Role", options=["customer", "manager", "admin"], index=0)
-    return api_url, session_id, customer_id, role
+    if identity["role"] == "customer":
+        customer_id = st.sidebar.text_input(
+            "Cliente autenticado",
+            value=identity["customer_id"],
+            disabled=True,
+        )
+    else:
+        customer_id = st.sidebar.text_input("Cliente alvo", value=DEFAULT_CUSTOMER_ID)
+    return api_url, session_id, customer_id, DEMO_PROFILES[profile_key][1]
 
 
 def render_prompt_buttons() -> None:
@@ -39,7 +81,7 @@ def render_prompt_buttons() -> None:
             st.session_state["selected_prompt"] = prompt
 
 
-def render_chat(api_url: str, session_id: str, customer_id: str, role: str) -> None:
+def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str) -> None:
     render_prompt_buttons()
 
     for item in st.session_state["chat_history"]:
@@ -56,7 +98,7 @@ def render_chat(api_url: str, session_id: str, customer_id: str, role: str) -> N
     st.session_state["chat_history"].append({"role": "user", "content": message})
     try:
         start = time.perf_counter()
-        result = send_chat_message(api_url, session_id, customer_id, role, message)
+        result = send_chat_message(api_url, session_id, customer_id, auth_token, message)
         st.session_state["last_latency_ms"] = round((time.perf_counter() - start) * 1000)
         st.session_state["last_result"] = result
         st.session_state["chat_history"].append({"role": "assistant", "content": result.get("message", "")})
@@ -115,8 +157,12 @@ def main() -> None:
         "Itau Chat",
         "Atendimento bancario simulado com PIX, saldo, limite, emergencia e respostas documentais.",
     )
-    api_url, session_id, customer_id, role = render_sidebar()
-    render_chat(api_url, session_id, customer_id, role)
+    sidebar_state = render_sidebar()
+    if sidebar_state is None:
+        st.info("Escolha um perfil controlado na lateral para iniciar a demonstração.")
+        return
+    api_url, session_id, customer_id, auth_token = sidebar_state
+    render_chat(api_url, session_id, customer_id, auth_token)
     render_customer_action()
 
 

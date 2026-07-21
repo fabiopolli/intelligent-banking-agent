@@ -135,9 +135,16 @@ O Compose sobe API, chat e painel tecnico. Os Streamlits usam `DEFAULT_API_URL=h
 $env:INTERNAL_TOOL_API_KEY="<chave-interna>"
 ```
 
-O chat envia `X-Demo-Auth-Token` para a API usando `DEMO_AUTH_TOKEN`, preenchido pelo Compose a
-partir de `DEMO_CUSTOMER_TOKEN`. Se o chat retornar `403`, recrie API e chat juntos para que ambos
-recebam o mesmo `.env`: `docker compose up -d --force-recreate api customer-chat`.
+O chat inicia com um login simulado controlado para cliente, gerente ou administrador. Os tokens vêm
+de `DEMO_CUSTOMER_TOKEN`, `DEMO_MANAGER_TOKEN` e `DEMO_ADMIN_TOKEN`, são validados pela API e nunca
+aparecem na interface. A API deriva `principal_id`, cliente próprio, papel e scopes exclusivamente do
+token; o campo `role` do body não concede autoridade. Se o chat retornar `403`, recrie API e chat
+juntos para que ambos recebam o mesmo `.env`: `docker compose up -d --force-recreate api customer-chat`.
+
+Na demo, o cliente `123` acessa somente a própria conta, o gerente possui leitura de clientes e o
+administrador possui leitura e operações. Expressões explícitas como `cliente 456` são resolvidas em
+código nativo antes do planner; o Harness aplica RBAC antes de dados e tools. Em produção, esse
+registro local deve ser substituído por OIDC/OAuth2 Authorization Code com PKCE e JWT validado no servidor.
 
 O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e versionado no repositorio e copiado para a imagem Docker. A imagem do desafio em `.docs/desafio.png` permanece fora do Git.
 
@@ -451,9 +458,10 @@ Checklist rápido:
 
 ## Próximos Passos
 
-O backend funcional ainda possui limites conhecidos: a identidade de demo ainda nao oferece login
-confiavel por perfil e a auditoria critica fica em memoria ate o reinicio da API. A configuracao de
-modelos tambem precisa ser consolidada antes de ser tratada como politica final. O histórico HITL de
+O backend funcional ainda possui limites conhecidos: a auditoria critica fica em memoria ate o
+reinicio da API e a configuracao de modelos precisa ser consolidada antes de ser tratada como politica
+final. O login confiável local é apenas um adapter de demonstração, não um provedor de identidade de
+produção. O histórico HITL de
 PIX já é preservado em memória durante a sessão da API; persistência de traces após restart permanece
 fora deste slice.
 
@@ -461,7 +469,7 @@ Ordem aprovada para concluir a entrega:
 
 1. criar `main` a partir do commit-base `02bd31a`, mantendo `feat/tech-lead-planning` como origem do PR;
 2. preservar no backend toda a passagem HITL de Pix: checkpoint, retomada e conclusao — concluído;
-3. adicionar login simulado confiavel para cliente, gerente e administrador e provar RBAC para terceiros;
+3. adicionar login simulado confiavel para cliente, gerente e administrador e provar RBAC para terceiros — concluído;
 4. persistir auditoria critica append-only no PostgreSQL, com hash, idempotencia e bloqueio de alteracao/exclusao;
 5. padronizar OpenAI `gpt-5.4` como primario, Gemma4 como fallback documental e resposta deterministica final;
 6. mover prompts internos para ingles, exigir saida pt-BR e tratar saudacoes/apresentacoes antes do RAG;

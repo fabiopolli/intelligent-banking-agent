@@ -242,12 +242,13 @@ def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  #
 
     monkeypatch.setattr(ui_common.httpx, "post", fake_post)
 
-    ui_common.send_chat_message("http://api", "session", "123", "customer", "tarifas")
+    ui_common.send_chat_message("http://api", "session", "123", "trusted-token", "tarifas")
 
     timeout = captured["timeout"]
     assert timeout.read == ui_common.CHAT_REQUEST_TIMEOUT_SECONDS
     assert timeout.connect == 3.0
-    assert captured["headers"] == {"X-Demo-Auth-Token": ui_common.DEFAULT_DEMO_AUTH_TOKEN}
+    assert captured["headers"] == {"X-Demo-Auth-Token": "trusted-token"}
+    assert "role" not in captured["json"]
 
 
 def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001
