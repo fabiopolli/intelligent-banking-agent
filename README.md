@@ -112,6 +112,7 @@ Resultado validado em 18 de julho de 2026:
 - `39 passed, 2 warnings` apos polimento de chat RAG/LLM para tarifas, sem fontes visiveis no chat do cliente e com fallback controlado quando provider LLM falha
 - `48 passed, 2 warnings` apos catalogo curado por produto, embedding deterministico, resposta grounded de consignado INSS, adapter PostgreSQL/pgvector e correcao do timeout de fallback
 - `59 passed, 2 warnings` localmente e no container apos persistencia completa de chunks/fontes, respostas objetivas, isolamento de testes e failover OpenAI -> Gemma configuravel
+- `78 passed, 2 warnings` localmente e no container apos reconciliacao integral das 25 paginas do PDF, catalogo estruturado completo e correcao do header de autenticacao do chat
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -134,6 +135,10 @@ O Compose sobe API, chat e painel tecnico. Os Streamlits usam `DEFAULT_API_URL=h
 $env:INTERNAL_TOOL_API_KEY="<chave-interna>"
 ```
 
+O chat envia `X-Demo-Auth-Token` para a API usando `DEMO_AUTH_TOKEN`, preenchido pelo Compose a
+partir de `DEMO_CUSTOMER_TOKEN`. Se o chat retornar `403`, recrie API e chat juntos para que ambos
+recebam o mesmo `.env`: `docker compose up -d --force-recreate api customer-chat`.
+
 O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e versionado no repositorio e copiado para a imagem Docker. A imagem do desafio em `.docs/desafio.png` permanece fora do Git.
 
 ### Knowledge Base Curada
@@ -146,6 +151,19 @@ ficam normalizados em `tariff_entries`, `tariff_rules`, `tariff_entry_rules`, `s
 `package_items`; `knowledge_pages` e `knowledge_sections` preservam a proveniencia do PDF. A busca combina indice textual e
 similaridade pgvector; nenhuma consulta web acontece durante o atendimento. Localmente e em CI, o mesmo
 catalogo funciona sem banco com retrieval em memoria.
+
+O catálogo da tabela PF vigente em 01/07/2026 foi reconciliado visualmente nas 25 páginas e possui:
+
+- 169 registros de tarifa, percentual, isenção, fórmula ou valor negociado;
+- 50 pacotes e 78 itens de composição dos pacotes detalhados nas páginas 3 e 5;
+- 56 regras e observações;
+- 165 tarifas publicadas e 4 registros mantidos como `review_required`.
+
+Os quatro registros bloqueados representam duas contradições existentes no próprio PDF entre as
+páginas físicas 17 e 20: avaliação de bem em garantia (`R$ 748,00` versus `R$ 709,00`) e cadastro de
+financiamento (`R$ 1.149,00` versus `R$ 1.025,00`). O chat não escolhe arbitrariamente um valor; ele
+informa a divergência com segurança. `knowledge/catalog/tariff_reconciliation.json` contabiliza
+linhas canônicas, aliases, pacotes, itens e regras página a página.
 
 O PDF de tarifas continua versionado como evidencia de origem e seus chunks, pagina e hash ficam
 persistidos no banco. Fatos que exigem associacao precisa entre colunas, como servico, canal e valor,
@@ -269,9 +287,10 @@ Para tarifas, a ordem atual e:
 
 1. Harness classifica a pergunta documental e resolve perguntas estaveis de navegacao por fast path, sem aguardar LLM.
 2. Harness recupera e ranqueia contexto oficial aprovado.
-3. Se houver LLM habilitada, a LLM sintetiza uma resposta curta e inclui uma referencia institucional amigavel, sem expor arquivos, URLs ou paginas.
-4. Se a LLM estiver desligada, ausente ou falhar, o builder controlado de tarifas responde sem despejar tabela crua do PDF.
-5. Em todos os casos, `grounding_sources`, prompt, contexto aprovado, provider/model, fallback e token usage permanecem disponiveis no payload tecnico e no painel do avaliador.
+3. Consultas numéricas, isenções, percentuais, fórmulas e pacotes usam o builder estruturado sem LLM; contradições `review_required` são bloqueadas.
+4. Outras perguntas documentais podem usar a LLM para sintetizar contexto oficial aprovado, sem expor arquivos, URLs ou páginas ao cliente.
+5. Se a LLM estiver desligada, ausente ou falhar, o fluxo documental mantém fallback controlado sem despejar tabela crua do PDF.
+6. Em todos os casos, `grounding_sources`, prompt, contexto aprovado, provider/model, fallback e token usage permanecem disponiveis no payload tecnico e no painel do avaliador.
 
 O chat usa um timeout maior que o budget do provider LLM. Assim, se o Model Runner ou o modelo
 configurado estiver indisponivel, a API consegue concluir o fallback antes de o Streamlit abandonar
