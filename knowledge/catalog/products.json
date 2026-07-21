@@ -1,0 +1,96 @@
+{
+  "catalog_version": 1,
+  "documents": [
+    {
+      "knowledge_id": "tariffs-overview-v1",
+      "title": "Tarifas e pacotes de servicos para pessoa fisica",
+      "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+      "text": "Tarifas bancarias variam conforme produto, pacote contratado, quantidade mensal incluida e canal utilizado. A resposta deve identificar conta, pacote, servico e canal antes de afirmar um valor. A tabela vigente de tarifas pessoa fisica e a evidencia para valores.",
+      "product": "tarifas",
+      "topic": "pacotes",
+      "audience": "pessoa_fisica",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-20",
+      "limitations": "Nao afirmar valor sem recuperar a linha vigente correspondente ao produto e canal."
+    },
+    {
+      "knowledge_id": "tariffs-withdrawal-current-account-v1",
+      "title": "Saque em conta corrente",
+      "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+      "text": "Para saque em conta corrente, a cobranca depende da franquia mensal do pacote, da quantidade de saques ja utilizada e do canal. O cliente deve informar o pacote ou permitir sua consulta antes de receber um valor individual de tarifa.",
+      "product": "conta_corrente",
+      "topic": "saque",
+      "audience": "pessoa_fisica",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-20",
+      "limitations": "Nao generalizar franquias entre pacotes nem afirmar gratuidade sem contexto."
+    },
+    {
+      "knowledge_id": "credit-consigned-inss-v1",
+      "title": "Credito consignado INSS para aposentados e pensionistas",
+      "source": "https://www.itau.com.br/uniclass/emprestimos-financiamentos/emprestimo-consignado-inss",
+      "text": "O credito consignado INSS e destinado a aposentados, pensionistas e outros beneficiarios do INSS que recebem o beneficio pelo Itau e possuem margem disponivel. As parcelas sao fixas, descontadas diretamente do beneficio e o prazo pode chegar a 108 meses. A pagina do produto informa taxas atrativas, mas nao publica uma taxa unica aplicavel a todos; a taxa, o CET e as condicoes precisam ser confirmados na simulacao vigente do cliente.",
+      "product": "credito_consignado_inss",
+      "topic": "taxa_e_condicoes",
+      "audience": "aposentados_pensionistas_inss",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-20",
+      "limitations": "Nao converter exemplo, teto regulatorio ou faixa historica em oferta individual."
+    },
+    {
+      "knowledge_id": "tariffs-withdrawal-values-2026-07-v1",
+      "title": "Tarifas avulsas de saque por canal",
+      "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+      "text": "Vigencia a partir de 01/07/2026, pagina 7. Saque de conta de depositos a vista e poupanca: atendimento presencial ou pessoal, R$ 6,50; terminal de autoatendimento, R$ 6,50; correspondente no pais, R$ 2,25. A cobranca ocorre depois da quantidade gratuita ou incluida no pacote, conforme o canal e as regras da conta. Em contas exclusivamente eletronicas, a tarifa de saque em terminal de autoatendimento nao pode ser cobrada.",
+      "product": "tarifas",
+      "topic": "saque_por_canal",
+      "audience": "pessoa_fisica",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-21",
+      "limitations": "Os valores sao tarifas avulsas; confirmar franquia, pacote, tipo de conta e canal antes de afirmar cobranca individual."
+    },
+    {
+      "knowledge_id": "investments-fees-overview-v1",
+      "title": "Custos de investimentos nos canais digitais Itau",
+      "source": "https://www.itau.com.br/investimentos",
+      "text": "A pagina oficial de investimentos informa taxa zero de custodia da Itau Corretora para renda variavel, renda fixa e Tesouro Direto, e taxa zero de corretagem para fundos imobiliarios negociados exclusivamente pelos canais digitais elegiveis. Em fundos de investimento, a taxa de administracao depende do fundo. A tabela geral de tarifas PF vigente em 01/07/2026 informa, para fundos abertos, taxa de administracao de 0,10% a 4,50% sobre o patrimonio liquido; para fundos fechados, de 0,30% a 4,50%; e taxa de performance de 20% a 50%, conforme o produto e regulamento.",
+      "product": "investimentos",
+      "topic": "taxas_e_custos",
+      "audience": "pessoa_fisica",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-21",
+      "limitations": "Confirmar o regulamento do investimento e a elegibilidade do canal antes de aplicar qualquer taxa ao cliente."
+    },
+    {
+      "knowledge_id": "support-whatsapp-v1",
+      "title": "Atendimento Itau pelo WhatsApp",
+      "source": "https://www.itau.com.br/atendimento-itau/para-voce",
+      "text": "A Central de Ajuda Itau apresenta o WhatsApp Itau e os canais de chat no app e na internet para duvidas e atendimento. O cliente deve utilizar os canais oficiais e nunca compartilhar senha, iToken ou codigo de seguranca.",
+      "product": "atendimento",
+      "topic": "whatsapp",
+      "audience": "pessoa_fisica",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-20",
+      "limitations": "Nao publicar numero ou link de conversa sem validacao da pagina oficial vigente."
+    },
+    {
+      "knowledge_id": "institutional-policies-v1",
+      "title": "Politicas institucionais e governanca Itau",
+      "source": "https://www.itau.com.br/relacoes-com-investidores/politicas/",
+      "text": "A pagina de politicas de relacoes com investidores do Itau concentra documentos institucionais relacionados a governanca corporativa, integridade, etica, ESG e informacoes regulatorias.",
+      "product": "institucional",
+      "topic": "governanca",
+      "audience": "all",
+      "version": 1,
+      "status": "published",
+      "reviewed_at": "2026-07-20",
+      "limitations": "Confirmar o documento e sua versao na pagina oficial antes de citar uma regra especifica."
+    }
+  ]
+}

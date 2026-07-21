@@ -7,6 +7,8 @@ COPY app /app/app
 COPY frontend /app/frontend
 COPY scripts /app/scripts
 COPY tests /app/tests
+COPY knowledge /app/knowledge
+COPY prompts /app/prompts
 COPY .docs/tabela_geral_de_tarifas_pf_pdf.pdf /app/.docs/tabela_geral_de_tarifas_pf_pdf.pdf
 
 RUN pip install --no-cache-dir -e .[dev]

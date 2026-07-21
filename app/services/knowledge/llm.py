@@ -7,6 +7,7 @@ from typing import Protocol
 
 from app.config import settings
 from app.services.knowledge.schemas import RetrievedKnowledge
+from app.services.prompt_registry import PromptRegistry, prompt_registry
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +28,7 @@ class LocalGroundedFaqSynthesizer:
     def synthesize(self, query: str, contexts: list[RetrievedKnowledge]) -> str:
         start = time.perf_counter()
         primary = contexts[0]
-        secondary_sources = [item.source for item in contexts[1:]]
-        context_note = ""
-        if secondary_sources:
-            context_note = " Tambem conferi outro contexto relacionado antes de responder."
-
-        message = (
-            "Posso te orientar assim: "
-            f"{self._compact(primary.text)}{context_note}"
-        )
+        message = self._customer_service_fallback(query, primary)
         self.last_trace = {
             "provider": self.provider_name,
             "model": "local-deterministic",
@@ -46,6 +39,24 @@ class LocalGroundedFaqSynthesizer:
             "duration_ms": round((time.perf_counter() - start) * 1000),
         }
         return message
+
+    def _customer_service_fallback(self, query: str, primary: RetrievedKnowledge) -> str:
+        normalized_query = query.lower()
+        if "politica" in normalized_query or "governanca" in normalized_query:
+            return (
+                "Claro! As politicas institucionais do Itau reunem diretrizes sobre governanca "
+                "corporativa, integridade, etica, ESG e temas regulatorios. Se voce me disser qual "
+                "desses assuntos quer consultar, eu direciono a informacao com mais precisao."
+            )
+        if "whatsapp" in normalized_query or "atendimento" in normalized_query:
+            return (
+                "Claro! Posso te ajudar a encontrar o canal oficial de atendimento do Itau mais "
+                "adequado. Me diga se voce precisa falar sobre conta, cartao, Pix ou outro produto."
+            )
+        return (
+            "Claro! Encontrei uma orientacao oficial do Itau relacionada ao que voce perguntou: "
+            f"{self._compact(primary.text)} Se quiser, posso te ajudar a detalhar esse assunto."
+        )
 
     def _compact(self, text: str, limit: int = 260) -> str:
         compact = " ".join(text.split())
@@ -71,8 +82,13 @@ class LocalGroundedFaqSynthesizer:
 class OpenAIGroundedFaqSynthesizer:
     provider_name = "openai-responses"
 
-    def __init__(self, fallback: GroundedFaqSynthesizer | None = None) -> None:
+    def __init__(
+        self,
+        fallback: GroundedFaqSynthesizer | None = None,
+        prompts: PromptRegistry | None = None,
+    ) -> None:
         self._fallback = fallback or LocalGroundedFaqSynthesizer("openai-fallback-local")
+        self._prompts = prompts or prompt_registry
         self.last_trace: dict = {}
 
     def synthesize(self, query: str, contexts: list[RetrievedKnowledge]) -> str:
@@ -92,21 +108,17 @@ class OpenAIGroundedFaqSynthesizer:
             return message
 
         try:
-            client = OpenAI(api_key=settings.openai_api_key, timeout=settings.llm_timeout_seconds)
+            client = OpenAI(
+                api_key=settings.openai_api_key,
+                timeout=settings.llm_timeout_seconds,
+                max_retries=0,
+            )
             response = client.responses.create(
                 model=settings.llm_model,
                 input=[
                     {
                         "role": "developer",
-                        "content": (
-                            "Voce e um sintetizador documental para atendimento bancario. "
-                            "Use somente o contexto oficial aprovado recebido. "
-                            "Nao invente tarifas, valores, regras, canais ou prazos. "
-                            "Nao solicite nem execute ferramentas, operacoes bancarias ou side effects. "
-                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente. "
-                            "Nao cite nomes de arquivos, URLs, paginas, fontes, trechos ou contexto aprovado "
-                            "na resposta ao cliente; essas evidencias ficam apenas no payload tecnico."
-                        ),
+                        "content": self._prompts.load("knowledge", "system"),
                     },
                     {
                         "role": "user",
@@ -131,15 +143,20 @@ class OpenAIGroundedFaqSynthesizer:
             return message
         self.last_trace = {
             "provider": self.provider_name,
-            "model": settings.llm_model,
+            "model": self._trace_model_name(),
             "fallback_used": False,
             "fallback_reason": None,
             "prompt": prompt,
             "approved_context": self._context_trace(contexts),
             "token_usage": self._extract_usage(response),
+            "prompt_profile": self._prompts.profile,
+            "prompt_version": self._prompts.version,
             "duration_ms": round((time.perf_counter() - start) * 1000),
         }
         return text
+
+    def _trace_model_name(self) -> str:
+        return settings.llm_model
 
     def _build_user_prompt(self, query: str, contexts: list[RetrievedKnowledge]) -> str:
         context_blocks = []
@@ -174,13 +191,15 @@ class OpenAIGroundedFaqSynthesizer:
         fallback_trace = getattr(self._fallback, "last_trace", {}) or {}
         return {
             "provider": self.provider_name,
-            "model": settings.llm_model,
+            "model": self._trace_model_name(),
             "fallback_used": True,
             "fallback_reason": reason,
             "fallback_provider": fallback_trace.get("provider", "local-deterministic"),
             "prompt": prompt,
             "approved_context": self._context_trace(contexts),
             "token_usage": None,
+            "prompt_profile": self._prompts.profile,
+            "prompt_version": self._prompts.version,
             "duration_ms": round((time.perf_counter() - start) * 1000),
         }
 
@@ -221,6 +240,9 @@ class OpenAIGroundedFaqSynthesizer:
 class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
     provider_name = "docker-model-runner"
 
+    def _trace_model_name(self) -> str:
+        return settings.docker_model_runner_model
+
     def synthesize(self, query: str, contexts: list[RetrievedKnowledge]) -> str:
         start = time.perf_counter()
         prompt = self._build_user_prompt(query, contexts)
@@ -238,21 +260,14 @@ class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
                 api_key="not-needed",
                 base_url=settings.docker_model_runner_base_url,
                 timeout=settings.llm_timeout_seconds,
+                max_retries=0,
             )
             response = client.chat.completions.create(
                 model=settings.docker_model_runner_model,
                 messages=[
                     {
                         "role": "system",
-                        "content": (
-                            "Voce e um sintetizador documental para atendimento bancario. "
-                            "Use somente o contexto oficial aprovado recebido. "
-                            "Nao invente tarifas, valores, regras, canais ou prazos. "
-                            "Nao solicite nem execute ferramentas, operacoes bancarias ou side effects. "
-                            "Se o contexto nao sustentar uma resposta, diga que nao ha contexto oficial suficiente. "
-                            "Nao cite nomes de arquivos, URLs, paginas, fontes, trechos ou contexto aprovado "
-                            "na resposta ao cliente; essas evidencias ficam apenas no payload tecnico."
-                        ),
+                        "content": self._prompts.load("knowledge", "system"),
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -282,6 +297,8 @@ class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
             "prompt": prompt,
             "approved_context": self._context_trace(contexts),
             "token_usage": self._extract_usage(response),
+            "prompt_profile": self._prompts.profile,
+            "prompt_version": self._prompts.version,
             "duration_ms": round((time.perf_counter() - start) * 1000),
         }
         return text
@@ -295,7 +312,12 @@ def build_grounded_faq_synthesizer() -> GroundedFaqSynthesizer | None:
         return LocalGroundedFaqSynthesizer()
 
     if settings.llm_provider == "openai":
-        return OpenAIGroundedFaqSynthesizer()
+        fallback: GroundedFaqSynthesizer | None = None
+        if settings.llm_fallback_provider in {"docker", "docker_model_runner", "dmr"}:
+            fallback = DockerModelRunnerGroundedFaqSynthesizer(
+                fallback=LocalGroundedFaqSynthesizer("docker-fallback-local")
+            )
+        return OpenAIGroundedFaqSynthesizer(fallback=fallback)
 
     if settings.llm_provider in {"docker", "docker_model_runner", "dmr"}:
         return DockerModelRunnerGroundedFaqSynthesizer()

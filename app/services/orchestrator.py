@@ -28,14 +28,16 @@ class PendingLimitOperation:
 
 
 class EmergencyNode:
-    def __init__(self, response_builder: ResponseBuilder) -> None:
+    def __init__(self, response_builder: ResponseBuilder, rbac_service: RBACService) -> None:
         self._response_builder = response_builder
+        self._rbac_service = rbac_service
 
-    def handle(self, payload: ChatRequest) -> HarnessResponse:
-        return self._handle(payload)
+    def handle(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        return self._handle(payload, auth)
 
     @traceable(name="Emergency Node", run_type="tool")
-    def _handle(self, payload: ChatRequest) -> HarnessResponse:
+    def _handle(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        self._rbac_service.validate_owner_access(auth, payload.customer_id)
         mock_bank_service.block_card(payload.customer_id)
         profile = mock_bank_service.get_customer_profile(payload.customer_id)
         return self._response_builder.emergency(
@@ -161,13 +163,13 @@ class DemoOrchestrator:
         rbac_service: RBACService,
         grounded_knowledge: GroundedKnowledgeService | None = None,
     ) -> None:
-        self._emergency = EmergencyNode(response_builder)
+        self._emergency = EmergencyNode(response_builder, rbac_service)
         self._core_banking = CoreBankingNode(response_builder, rbac_service)
         self._transaction = TransactionNode(response_builder, rbac_service)
         self._faq = FaqNode(response_builder, grounded_knowledge or knowledge_service)
 
-    def emergency(self, payload: ChatRequest) -> HarnessResponse:
-        return self._emergency.handle(payload)
+    def emergency(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        return self._emergency.handle(payload, auth)
 
     def core_banking_limit(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         return self._core_banking.handle_limit(payload, auth)

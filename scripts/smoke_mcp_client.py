@@ -25,6 +25,10 @@ async def run_smoke(url: str) -> dict[str, Any]:
     assert "send_agent_message" in tool_names
     assert "search_tariff_knowledge" in tool_names
     assert "get_demo_status" in tool_names
+    assert "get_customer_profile" in tool_names
+    assert "get_card_limit" in tool_names
+    assert "update_card_limit" in tool_names
+    assert "create_pix" in tool_names
     assert "itau://mcp/tools" in resource_uris
     assert "itau://knowledge/resources" in resource_uris
     assert status_payload["knowledge"]["pdf_ingested"] is True

@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "banking-v1": {
+      "version": "1.0.0",
+      "capabilities": {
+        "planner": {
+          "system": "banking-v1/planner/system.md"
+        },
+        "knowledge": {
+          "system": "banking-v1/knowledge/system.md"
+        }
+      }
+    }
+  }
+}

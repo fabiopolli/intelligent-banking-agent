@@ -8,6 +8,14 @@ class KnowledgeDocument:
     title: str
     source: str
     text: str
+    knowledge_id: str = ""
+    product: str = "general"
+    topic: str = "general"
+    audience: str = "all"
+    version: int = 1
+    status: str = "published"
+    reviewed_at: str | None = None
+    limitations: str = ""
 
 
 @dataclass(frozen=True)

@@ -63,6 +63,7 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     observability = trace.get("observability") or {}
     tools_called = observability.get("tools_called") or []
     llm = observability.get("llm") or {}
+    planner = observability.get("planner") or {}
 
     first, second, third = st.columns(3)
     first.metric("Route", route)
@@ -70,8 +71,8 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     third.metric("Sources", source_count)
     fourth, fifth, sixth = st.columns(3)
     fourth.metric("Tools", len(tools_called))
-    fifth.metric("LLM", llm.get("provider") or "disabled")
-    sixth.metric("Fallback", "Yes" if llm.get("fallback_used") else "No")
+    fifth.metric("Planner", planner.get("provider") or "disabled")
+    sixth.metric("Fallback", "Yes" if planner.get("fallback_used") else "No")
 
     pending = trace.get("pending_operation")
     if pending:
@@ -87,6 +88,28 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
         st.code(json.dumps(trace, indent=2, ensure_ascii=False), language="json")
 
     with st.expander("Observability: tools, prompt, context and tokens", expanded=False):
+        st.markdown("**Agent planner**")
+        st.code(
+            json.dumps(
+                {
+                    "provider": planner.get("provider"),
+                    "model": planner.get("model"),
+                    "selected_tool": planner.get("selected_tool"),
+                    "fallback_selected_tool": planner.get("fallback_selected_tool"),
+                    "route": planner.get("route"),
+                    "fallback_used": planner.get("fallback_used"),
+                    "fallback_reason": planner.get("fallback_reason"),
+                    "prompt_profile": planner.get("prompt_profile"),
+                    "prompt_version": planner.get("prompt_version"),
+                    "prompt_hash": planner.get("prompt_hash"),
+                    "token_usage": planner.get("token_usage"),
+                    "duration_ms": planner.get("duration_ms"),
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            language="json",
+        )
         st.markdown("**Tools called**")
         st.code(json.dumps(tools_called, indent=2, ensure_ascii=False), language="json")
         st.markdown("**LLM provider**")

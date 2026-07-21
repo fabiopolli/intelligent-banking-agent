@@ -4,6 +4,7 @@ import re
 import unicodedata
 
 from app.config import settings
+from app.services.agent_planner import Planner, build_agent_planner
 from app.graph.workflow import DemoWorkflowGraph
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
@@ -12,7 +13,6 @@ from app.schemas.outbound import PixCreateRequest
 from app.security.guardrails import GuardrailsService
 from app.security.rbac import RBACService
 from app.services.checkpoint_store import CheckpointStore, checkpoint_store
-from app.services.intent_router import IntentRouter
 from app.services.observability import traceable
 from app.services.customer_support import CustomerSupportService
 from app.services.mock_bank import mock_bank_service
@@ -24,13 +24,13 @@ from app.services.trace_store import trace_store
 class DemoHarness:
     def __init__(
         self,
-        router: IntentRouter | None = None,
+        router: Planner | None = None,
         response_builder: ResponseBuilder | None = None,
         rbac_service: RBACService | None = None,
         guardrails_service: GuardrailsService | None = None,
         checkpoints: CheckpointStore | None = None,
     ) -> None:
-        self._router = router or IntentRouter()
+        self._router = router or build_agent_planner()
         self._response_builder = response_builder or ResponseBuilder()
         self._rbac_service = rbac_service or RBACService()
         self._guardrails_service = guardrails_service or GuardrailsService()
@@ -38,22 +38,47 @@ class DemoHarness:
         self._workflow_graph = DemoWorkflowGraph(self._orchestrator)
         self._checkpoints = checkpoints or checkpoint_store
 
-    def handle_message(self, payload: ChatRequest) -> dict:
-        response = self._handle_message(payload)
+    def handle_message(self, payload: ChatRequest, auth: AuthContext | None = None) -> dict:
+        trusted_auth = auth or AuthContext(customer_id=payload.customer_id, role=payload.role)
+        response = self._handle_message(payload, trusted_auth)
         response_payload = response.model_dump()
         trace_store.record(payload.session_id, response_payload)
         return response_payload
 
     @traceable(name="Agent Harness", run_type="chain")
-    def _handle_message(self, payload: ChatRequest) -> HarnessResponse:
+    def _handle_message(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._guardrails_service.validate_message(payload.message)
+        if self._guardrails_service.contains_sensitive_credential(payload.message):
+            response = self._response_builder.transaction_blocked_by_policy(
+                payload.session_id,
+                (
+                    "Por seguranca, nao envie senha, iToken, CVV ou dados completos de cartao nesta conversa. "
+                    "Use somente os canais oficiais do banco para dados de autenticacao."
+                ),
+            )
+            response.observability = {
+                "guardrails": {
+                    "stage": "pre_llm_ingress",
+                    "blocked": True,
+                    "reason": "sensitive_credential",
+                },
+                "planner": {
+                    "provider": "not_called",
+                    "fallback_used": False,
+                    "fallback_reason": "blocked_by_pre_llm_guardrail",
+                },
+            }
+            return response
         if self._is_confirmation_message(payload.message):
-            return self._resume_pending_operation(payload)
+            return self._resume_pending_operation(payload, auth)
         if self._has_collectable_limit_draft(payload):
-            return self._dispatch("core_banking_limit", payload)
+            return self._dispatch("core_banking_limit", payload, auth)
         enriched_payload = self._enrich_documental_followup(payload)
-        route = self._classify_intent(enriched_payload.message)
-        response = self._dispatch(route, enriched_payload)
+        planner_message = self._guardrails_service.redact_for_llm(enriched_payload.message)
+        route = self._classify_intent(planner_message)
+        response = self._dispatch(route, enriched_payload, auth)
+        planner_trace = getattr(self._router, "last_trace", {}) or {}
+        response.observability = {**response.observability, "planner": planner_trace}
         if route == "faq_fast_path" and response.grounding_sources:
             self._checkpoints.save_documental_draft(
                 payload.session_id,
@@ -65,9 +90,8 @@ class DemoHarness:
     def _classify_intent(self, message: str) -> str:
         return self._router.classify(message)
 
-    def _dispatch(self, route: str, payload: ChatRequest) -> HarnessResponse:
-        auth = AuthContext(customer_id=payload.customer_id, role=payload.role)
-
+    def _dispatch(self, route: str, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        self._rbac_service.validate_owner_access(auth, payload.customer_id)
         if route == "transaction":
             pix_request = self._build_pix_request(payload)
             if pix_request is None:
@@ -103,12 +127,12 @@ class DemoHarness:
 
         return self._workflow_graph.invoke(payload, auth, route)
 
-    def _resume_pending_operation(self, payload: ChatRequest) -> HarnessResponse:
+    def _resume_pending_operation(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         pending = self._checkpoints.get_pending_pix(payload.session_id)
         if pending is not None:
             response = self._workflow_graph.invoke(
                 payload,
-                AuthContext(customer_id=payload.customer_id, role=payload.role),
+                auth,
                 "transaction",
                 pending_operation=pending,
             )
@@ -120,7 +144,7 @@ class DemoHarness:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
 
         self._rbac_service.validate_owner_access(
-            AuthContext(customer_id=payload.customer_id, role=payload.role),
+            auth,
             pending_limit.customer_id,
         )
         response = self._orchestrator.limit_update_execute(payload.session_id, pending_limit)
@@ -184,15 +208,6 @@ class DemoHarness:
 
     def _validate_pix_policy(self, payload: ChatRequest, pix_request: PixCreateRequest) -> HarnessResponse | None:
         details = self._pix_details(pix_request)
-        if self._contains_sensitive_credential(payload.message):
-            return self._response_builder.transaction_blocked_by_policy(
-                payload.session_id,
-                (
-                    "Por seguranca, nao envie senha, iToken, CVV ou dados completos de cartao nesta conversa. "
-                    "Para PIX, a confirmacao deve acontecer nos canais oficiais do banco."
-                ),
-                details,
-            )
         if pix_request.amount > settings.pix_daily_limit:
             return self._response_builder.transaction_blocked_by_policy(
                 payload.session_id,
@@ -285,18 +300,6 @@ class DemoHarness:
             "amount": pix_request.amount,
             "destination_key": pix_request.destination_key,
         }
-
-    def _contains_sensitive_credential(self, message: str) -> bool:
-        normalized = self._normalize(message)
-        sensitive_patterns = [
-            r"\bsenha\b",
-            r"\bitoken\b",
-            r"\bcvv\b",
-            r"\bcodigo de seguranca\b",
-            r"\bnumero do cartao\b",
-            r"\bvalidade do cartao\b",
-        ]
-        return any(re.search(pattern, normalized) for pattern in sensitive_patterns)
 
     def _is_suspicious_pix_key(self, destination_key: str, message: str) -> bool:
         normalized_key = self._normalize(destination_key)

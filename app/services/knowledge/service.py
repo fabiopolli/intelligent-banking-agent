@@ -42,7 +42,8 @@ class GroundedKnowledgeService:
             return self._answer_payload(message, [], tools_called, [], None)
 
         tools_called.extend(["hybrid_retrieve", "local_rerank"])
-        retrieved = self._reranker.rerank(query, self._retriever.retrieve(query, top_k=6))[:2]
+        ranked = self._reranker.rerank(query, self._retriever.retrieve(query, top_k=6))
+        retrieved = self._select_grounded_contexts(ranked)
         if not retrieved or retrieved[0].score < 0.65:
             if self._is_tariff_query(query):
                 primary = self._default_tariff_reference()
@@ -63,7 +64,36 @@ class GroundedKnowledgeService:
 
         primary = retrieved[0]
         excerpt = self._compact_excerpt(primary.text)
-        if self._synthesizer is not None:
+        if self._is_tariff_query(query):
+            tools_called.append("controlled_tariff_answer_builder")
+            message = self._tariff_answers.build(query, primary)
+            llm_trace = None
+        elif self._is_consignado_query(query):
+            retrieved = [item for item in retrieved if "consignado" in item.source]
+            tools_called.append("controlled_consignado_answer_builder")
+            message = (
+                "O consignado INSS nao tem uma taxa unica publicada para todos os clientes. "
+                "Ele atende aposentados, pensionistas e outros beneficiarios que recebem pelo Itau, "
+                "tenham margem disponivel e pode ter prazo de ate 108 meses. A taxa e o CET aparecem "
+                "na simulacao vigente antes da contratacao."
+            )
+            llm_trace = None
+        elif self._is_investment_query(query):
+            retrieved = self._ensure_source_context(
+                retrieved,
+                "https://www.itau.com.br/investimentos",
+            )
+            retrieved = self._ensure_source_context(retrieved, TARIFF_PDF_SOURCE)
+            tools_called.append("controlled_investment_answer_builder")
+            message = (
+                "Nos canais digitais elegiveis, o Itau informa taxa zero de custodia para renda "
+                "variavel, renda fixa e Tesouro Direto, e corretagem zero para fundos imobiliarios. "
+                "Fundos de investimento podem cobrar administracao conforme o produto: a tabela PF "
+                "vigente desde 01/07/2026 indica faixas de 0,10% a 4,50% para fundos abertos e de "
+                "0,30% a 4,50% para fundos fechados. Confira o regulamento do fundo antes de investir."
+            )
+            llm_trace = None
+        elif self._synthesizer is not None:
             tools_called.append("grounded_faq_synthesizer")
             message = self._synthesizer.synthesize(query, retrieved)
             llm_trace = getattr(self._synthesizer, "last_trace", {}) or {}
@@ -91,8 +121,14 @@ class GroundedKnowledgeService:
         return self._answer_payload(message, sources, tools_called, retrieved, llm_trace)
 
     def status(self) -> dict:
+        curated_documents = [
+            document for document in self._retriever.documents if document.knowledge_id
+        ]
         return {
             "document_count": self._retriever.document_count,
+            "curated_document_count": len(curated_documents),
+            "knowledge_store": self._retriever.store_name,
+            "catalog_versions": sorted({document.version for document in curated_documents}),
             "sources": self._retriever.sources,
             "pdf_ingested": TARIFF_PDF_SOURCE in self._retriever.sources,
             "web_sources_loaded": all(
@@ -151,9 +187,55 @@ class GroundedKnowledgeService:
         query_terms = set(self._retriever._tokenize(query))
         return bool(query_terms & DOCUMENTAL_QUERY_TERMS)
 
+    def _select_grounded_contexts(self, ranked: list[RetrievedKnowledge]) -> list[RetrievedKnowledge]:
+        if not ranked:
+            return []
+        primary = ranked[0]
+        minimum_score = max(0.65, primary.score * 0.35)
+        return [item for item in ranked[:2] if item.score >= minimum_score]
+
     def _is_tariff_query(self, query: str) -> bool:
         query_terms = set(self._retriever._tokenize(query))
         return bool(query_terms & TARIFF_QUERY_TERMS)
+
+    def _is_consignado_query(self, query: str) -> bool:
+        query_terms = set(self._retriever._tokenize(query))
+        return "consignado" in query_terms and bool(
+            query_terms & {"aposentado", "aposentados", "pensionista", "pensionistas", "inss"}
+        )
+
+    def _is_investment_query(self, query: str) -> bool:
+        query_terms = set(self._retriever._tokenize(query))
+        return bool(
+            query_terms
+            & {"investimento", "investimentos", "fundo", "fundos", "tesouro", "custodia", "corretagem"}
+        )
+
+    def _is_tariff_navigation_query(self, query: str) -> bool:
+        normalized = query.lower()
+        return self._is_tariff_query(query) and any(
+            phrase in normalized
+            for phrase in ("onde consulto", "onde consultar", "onde encontro", "como consultar")
+        )
+
+    def _ensure_source_context(
+        self,
+        retrieved: list[RetrievedKnowledge],
+        source: str,
+    ) -> list[RetrievedKnowledge]:
+        if any(item.source == source for item in retrieved):
+            return retrieved
+        for document in self._retriever.documents:
+            if document.source == source:
+                return retrieved + [
+                    RetrievedKnowledge(
+                        title=document.title,
+                        source=document.source,
+                        text=document.text,
+                        score=1.0,
+                    )
+                ]
+        return retrieved
 
     def _default_tariff_reference(self) -> RetrievedKnowledge:
         for document in self._retriever.documents:

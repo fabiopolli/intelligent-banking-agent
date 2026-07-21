@@ -11,6 +11,7 @@ from app.main import app
 from app.api.inbound import harness
 from app.schemas.messages import ChatRequest
 from app.config import settings
+from app.services.checkpoint_store import CheckpointStore
 from app.services.harness import DemoHarness
 from app.services.knowledge.llm import (
     DockerModelRunnerGroundedFaqSynthesizer,
@@ -19,6 +20,7 @@ from app.services.knowledge.llm import (
 )
 from app.services.knowledge.service import GroundedKnowledgeService
 from app.services.mock_bank import mock_bank_service
+from app.services.orchestrator import PendingPixOperation
 from scripts.smoke_mcp_client import run_smoke
 
 
@@ -552,6 +554,21 @@ def test_documental_tariff_context_followup_reuses_previous_question() -> None:
     assert "pagina" not in body["message"].lower()
 
 
+def test_documental_memory_does_not_overwrite_pending_pix_checkpoint(tmp_path) -> None:  # noqa: ANN001
+    store = CheckpointStore(tmp_path / "checkpoints.json")
+    store.save_pending_pix(
+        "shared-session",
+        PendingPixOperation(customer_id="123", amount=7000.0, destination_key="maria@example.com"),
+    )
+
+    store.save_documental_draft("shared-session", {"last_query": "Tem tarifa para saque?"})
+
+    pending = store.get_pending_pix("shared-session")
+    assert pending is not None
+    assert pending.amount == 7000.0
+    assert store.get_documental_draft("shared-session") is None
+
+
 def test_knowledge_status_reports_ingested_tariff_pdf() -> None:
     response = client.get("/v1/mcp/knowledge/status", headers=INTERNAL_TOOL_HEADERS)
 
@@ -611,20 +628,41 @@ def test_grounded_faq_synthesizer_is_not_called_without_official_context() -> No
     assert synthesizer.calls == []
 
 
-def test_tariff_answer_uses_grounded_synthesizer_when_available() -> None:
+def test_local_fallback_uses_customer_service_voice_for_policy_question() -> None:
+    from app.services.knowledge.llm import LocalGroundedFaqSynthesizer
+    from app.services.knowledge.schemas import RetrievedKnowledge
+
+    synthesizer = LocalGroundedFaqSynthesizer("provider-fallback-local")
+    response = synthesizer.synthesize(
+        "Quais sao as politicas do Itau?",
+        [
+            RetrievedKnowledge(
+                title="Politicas institucionais",
+                source="https://www.itau.com.br/relacoes-com-investidores/politicas/",
+                text="Politicas de governanca, integridade, etica e ESG.",
+                score=1.0,
+            )
+        ],
+    )
+
+    assert response.startswith("Claro!")
+    assert "politicas institucionais do Itau" in response
+    assert "Posso te orientar assim" not in response
+
+
+def test_tariff_answer_uses_controlled_fast_path_when_synthesizer_is_available() -> None:
     synthesizer = RecordingSynthesizer()
     service = GroundedKnowledgeService(synthesizer=synthesizer)
 
     message, sources = service.answer("Tem tarifa para saque?")
 
     assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in sources
-    assert message == "Resposta sintetizada somente com contexto oficial recuperado."
-    assert synthesizer.calls
-    assert synthesizer.calls[0][0] == "Tem tarifa para saque?"
-    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in synthesizer.calls[0][1]
+    assert "saques" in message.lower()
+    assert "a tarifa pode variar" in message.lower()
+    assert synthesizer.calls == []
 
 
-def test_tariff_answer_uses_controlled_builder_when_synthesizer_falls_back() -> None:
+def test_tariff_answer_does_not_wait_for_provider_fallback() -> None:
     synthesizer = FallbackRecordingSynthesizer()
     service = GroundedKnowledgeService(synthesizer=synthesizer)
 
@@ -638,7 +676,7 @@ def test_tariff_answer_uses_controlled_builder_when_synthesizer_falls_back() -> 
     assert "pagina" not in result["message"].lower()
     assert "referencia" not in result["message"].lower()
     assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
-    assert synthesizer.calls
+    assert synthesizer.calls == []
 
 
 def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> None:  # noqa: ANN001
@@ -649,7 +687,8 @@ def test_openai_grounded_synthesizer_falls_back_without_api_key(monkeypatch) -> 
     message, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
 
     assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
-    assert "posso te orientar assim" in message.lower()
+    assert message.startswith("Claro!")
+    assert "canal oficial de atendimento do Itau" in message
     assert "fontes oficiais recuperadas" not in message.lower()
     assert "fonte" not in message.lower()
     assert synthesizer.last_trace["provider"] == "openai-responses"

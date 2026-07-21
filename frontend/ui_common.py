@@ -169,7 +169,7 @@ def send_chat_message(api_url: str, session_id: str, customer_id: str, role: str
             "role": role,
             "message": message,
         },
-        timeout=10.0,
+        timeout=httpx.Timeout(CHAT_REQUEST_TIMEOUT_SECONDS, connect=3.0),
     )
     response.raise_for_status()
     return response.json()
@@ -249,3 +249,4 @@ def fetch_mcp_resources(api_url: str) -> dict:
 
 def _internal_tool_headers() -> dict[str, str]:
     return {"X-Internal-Tool-Key": DEFAULT_INTERNAL_TOOL_KEY}
+CHAT_REQUEST_TIMEOUT_SECONDS = 30.0

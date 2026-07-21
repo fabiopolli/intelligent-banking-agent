@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import sys
+from types import SimpleNamespace
+
+from app.config import settings
+from app.services.knowledge.llm import (
+    DockerModelRunnerGroundedFaqSynthesizer,
+    OpenAIGroundedFaqSynthesizer,
+    build_grounded_faq_synthesizer,
+)
+from app.services.knowledge.schemas import RetrievedKnowledge
+from app.services.knowledge.catalog import CuratedCatalogLoader
+from app.services.knowledge.embedding import DeterministicTokenEmbedding
+from app.services.knowledge.retriever import LocalHybridRetriever
+from app.services.knowledge.service import GroundedKnowledgeService
+from frontend import ui_common
+
+
+def test_curated_catalog_has_unique_versioned_product_records() -> None:
+    documents = CuratedCatalogLoader().load_documents()
+
+    identifiers = [document.knowledge_id for document in documents]
+    assert len(documents) >= 5
+    assert len(identifiers) == len(set(identifiers))
+    assert all(document.reviewed_at for document in documents)
+    assert all(document.source for document in documents)
+    assert {document.product for document in documents} >= {
+        "tarifas",
+        "conta_corrente",
+        "credito_consignado_inss",
+    }
+
+
+def test_deterministic_embedding_is_stable_and_normalized() -> None:
+    embedding = DeterministicTokenEmbedding(dimensions=64)
+
+    first = embedding.embed("credito consignado para aposentados")
+    second = embedding.embed("credito consignado para aposentados")
+
+    assert first == second
+    assert len(first) == 64
+    assert abs(sum(value * value for value in first) - 1.0) < 1e-9
+
+
+def test_curated_retrieval_prioritizes_consignado_inss() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+
+    result = retriever.retrieve("Qual a taxa do emprestimo consignado para aposentados?", top_k=2)
+
+    assert result
+    assert result[0].title == "Credito consignado INSS para aposentados e pensionistas"
+    assert "itau.com.br" in result[0].source
+
+
+def test_consignado_answer_is_grounded_and_does_not_invent_a_rate() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace("Qual a taxa do emprestimo consignado para aposentados?")
+
+    assert "nao tem uma taxa unica" in result["message"].lower()
+    assert "simulacao" in result["message"].lower()
+    assert "%" not in result["message"]
+    assert result["sources"] == [
+        "https://www.itau.com.br/uniclass/emprestimos-financiamentos/emprestimo-consignado-inss"
+    ]
+    assert "controlled_consignado_answer_builder" in result["observability"]["tools_called"]
+
+
+def test_knowledge_status_exposes_curated_catalog_metadata() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    status = service.status()
+
+    assert status["knowledge_store"] == "local"
+    assert status["curated_document_count"] >= 5
+    assert status["catalog_versions"] == [1]
+
+
+def test_tariff_navigation_fast_path_does_not_call_llm() -> None:
+    class FailingSynthesizer:
+        provider_name = "must-not-run"
+
+        def synthesize(self, query, contexts):  # noqa: ANN001, ANN201
+            raise AssertionError("Stable tariff navigation must not call the LLM.")
+
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=FailingSynthesizer())
+
+    result = service.answer_with_trace("Onde consulto tarifas e pacotes de servicos?")
+
+    assert "tarifas e pacotes" in result["message"].lower()
+    assert "controlled_tariff_answer_builder" in result["observability"]["tools_called"]
+    assert "grounded_faq_synthesizer" not in result["observability"]["tools_called"]
+
+
+def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace("Qual a tarifa de saque em conta corrente?")
+
+    assert not result["message"].lower().startswith("claro")
+    assert "R$ 6,50" in result["message"]
+    assert "R$ 2,25" in result["message"]
+    assert result["sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
+
+
+def test_investment_fees_answer_uses_curated_official_values() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace("Quais sao as taxas de investimentos e fundos?")
+
+    assert "taxa zero de custodia" in result["message"].lower()
+    assert "0,10% a 4,50%" in result["message"]
+    assert "controlled_investment_answer_builder" in result["observability"]["tools_called"]
+    assert "https://www.itau.com.br/investimentos" in result["sources"]
+    assert ".docs/tabela_geral_de_tarifas_pf_pdf.pdf" in result["sources"]
+
+
+def test_chat_client_timeout_exceeds_backend_llm_budget(monkeypatch) -> None:  # noqa: ANN001
+    captured = {}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {"message": "ok"}
+
+    def fake_post(url, **kwargs):  # noqa: ANN001, ANN202
+        captured.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr(ui_common.httpx, "post", fake_post)
+
+    ui_common.send_chat_message("http://api", "session", "123", "customer", "tarifas")
+
+    timeout = captured["timeout"]
+    assert timeout.read == ui_common.CHAT_REQUEST_TIMEOUT_SECONDS
+    assert timeout.connect == 3.0
+
+
+def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001
+    captured = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs) -> None:  # noqa: ANN003
+            captured.update(kwargs)
+            self.chat = SimpleNamespace(
+                completions=SimpleNamespace(create=self._fail),
+            )
+
+        @staticmethod
+        def _fail(**kwargs):  # noqa: ANN003, ANN205
+            raise TimeoutError("provider timed out")
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    synthesizer = DockerModelRunnerGroundedFaqSynthesizer()
+    context = [
+        RetrievedKnowledge(
+            title="Tarifas",
+            source=".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+            text="A tarifa de saque depende do pacote e do canal.",
+            score=1.0,
+        )
+    ]
+
+    message = synthesizer.synthesize("Tem tarifa para saque?", context)
+
+    assert captured["timeout"] == settings.llm_timeout_seconds
+    assert captured["max_retries"] == 0
+    assert "tarifa de saque" in message.lower()
+    assert synthesizer.last_trace["fallback_used"] is True
+    assert synthesizer.last_trace["fallback_reason"] == "provider_error"
+    assert synthesizer.last_trace["model"] == settings.docker_model_runner_model
+
+
+def test_openai_provider_can_route_fallback_to_docker_model_runner(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setattr(settings, "llm_grounded_faq_enabled", True)
+    monkeypatch.setattr(settings, "llm_provider", "openai")
+    monkeypatch.setattr(settings, "llm_fallback_provider", "docker_model_runner")
+
+    synthesizer = build_grounded_faq_synthesizer()
+
+    assert isinstance(synthesizer, OpenAIGroundedFaqSynthesizer)
+    assert isinstance(synthesizer._fallback, DockerModelRunnerGroundedFaqSynthesizer)  # noqa: SLF001

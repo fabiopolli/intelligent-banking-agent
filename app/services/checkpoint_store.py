@@ -132,6 +132,9 @@ class CheckpointStore:
 
     def save_documental_draft(self, session_id: str, draft: dict[str, str]) -> None:
         checkpoints = self._read_all()
+        current = checkpoints.get(session_id)
+        if current is not None and current.get("type") != "documental_draft":
+            return
         checkpoints[session_id] = {"type": "documental_draft", **draft}
         self._write_all(checkpoints)
 

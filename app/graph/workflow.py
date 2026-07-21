@@ -92,7 +92,7 @@ class DemoWorkflowGraph:
         state = self._build_state(payload, auth, route, pix_request, pending_operation)
         node = state["next_node"]
         if node == "emergency_node":
-            return self._orchestrator.emergency(payload)
+            return self._orchestrator.emergency(payload, auth)
         if node == "core_banking_limit_node":
             return self._orchestrator.core_banking_limit(payload, auth)
         if node == "core_banking_balance_node":
@@ -168,4 +168,4 @@ class DemoWorkflowGraph:
         }
 
     def _emergency_node(self, state: WorkflowState) -> WorkflowState:
-        return {"response": self._orchestrator.emergency(state["payload"])}
+        return {"response": self._orchestrator.emergency(state["payload"], state["auth"])}

@@ -7,7 +7,7 @@ class McpToolRegistry:
             {
                 "name": "get_customer_profile",
                 "kind": "tool",
-                "transport": "internal-rest",
+                "transport": "mcp-and-internal-rest",
                 "path": "/v1/mcp/users/profile/{customer_id}",
                 "requires_rbac": True,
                 "requires_hitl": False,
@@ -17,7 +17,7 @@ class McpToolRegistry:
             {
                 "name": "get_card_limit",
                 "kind": "tool",
-                "transport": "internal-rest",
+                "transport": "mcp-and-internal-rest",
                 "path": "/v1/mcp/users/profile/{customer_id}",
                 "requires_rbac": True,
                 "requires_hitl": False,
@@ -27,7 +27,7 @@ class McpToolRegistry:
             {
                 "name": "update_card_limit",
                 "kind": "tool",
-                "transport": "internal-rest",
+                "transport": "mcp-and-internal-rest",
                 "path": "/v1/mcp/cards/limit",
                 "requires_rbac": True,
                 "requires_hitl": False,
@@ -37,7 +37,7 @@ class McpToolRegistry:
             {
                 "name": "create_pix",
                 "kind": "tool",
-                "transport": "internal-rest",
+                "transport": "mcp-and-internal-rest",
                 "path": "/v1/mcp/payments/pix",
                 "requires_rbac": True,
                 "requires_hitl": True,

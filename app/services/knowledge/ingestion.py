@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+from app.config import settings
+from app.services.knowledge.catalog import CuratedCatalogLoader
 from app.services.knowledge.config import (
     HELP_CENTER_SOURCE,
     OFFICIAL_KNOWLEDGE_DOCUMENTS,
@@ -171,9 +173,19 @@ class TariffPdfIngestor:
 
 
 def build_official_documents() -> list[KnowledgeDocument]:
+    curated = CuratedCatalogLoader().load_documents()
     ingested = TariffPdfIngestor().load_documents()
     web_documents = OfficialWebSnapshotIngestor().load_documents()
-    if not ingested:
-        return OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents
+    if settings.knowledge_store == "postgres":
+        from app.services.knowledge.postgres_store import PostgresKnowledgeStore
 
-    return OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents + ingested
+        store = PostgresKnowledgeStore(settings.database_url, settings.knowledge_embedding_dimensions)
+        store.sync(curated, source_chunks=web_documents + ingested)
+        return store.load_documents()
+    curated_sources = {document.source for document in curated}
+    legacy_documents = [
+        document
+        for document in OFFICIAL_KNOWLEDGE_DOCUMENTS + web_documents + ingested
+        if document.source not in curated_sources
+    ]
+    return curated + legacy_documents

@@ -19,8 +19,7 @@ class TariffAnswerBuilder:
 
         if subject == "pacotes e servicos":
             return (
-                "Claro. Voce pode consultar tarifas e pacotes pelo app Itau buscando por "
-                "'tarifas e pacotes'. Tambem posso te ajudar por aqui: me diga o servico, "
+                "Posso informar tarifas e pacotes por aqui. Tambem posso te ajudar por aqui: diga o servico e o canal usados, "
                 "como saque, segunda via, transferencia, conta poupanca ou pacote de servicos."
             )
 
@@ -30,14 +29,14 @@ class TariffAnswerBuilder:
                 return guidance.message
 
             return (
-                f"Claro. Para {subject} em {tariff_context}, o valor pode depender do seu pacote, "
+                f"Para {subject} em {tariff_context}, o valor depende do seu pacote, "
                 "do canal usado e do tipo de conta. Voce pode conferir o valor pelo app em "
                 "'tarifas e pacotes', ou continuar por aqui me dizendo se quer consultar pacote "
                 "essencial, pacote contratado ou uso avulso do servico."
             )
 
         return (
-            f"Claro. Para {subject}, a tarifa pode variar conforme pacote, canal e tipo de conta. "
+            f"Para {subject}, a tarifa pode variar conforme pacote, canal e tipo de conta. "
             "Para eu te orientar melhor no chat, me diga o contexto: conta corrente, poupanca, "
             "terminal Itau, Banco24Horas ou outro canal."
         )
@@ -65,25 +64,40 @@ class TariffAnswerBuilder:
         return None
 
     def _find_tariff_guidance(self, subject: str, tariff_context: str) -> TariffGuidance | None:
-        if subject != "saques" or tariff_context != "conta corrente":
+        if subject != "saques":
             return None
 
-        evidence = self._find_pdf_document_containing(
-            ["4 primeiros saques", "quantidade mensal do seu pacote", "tarifa avulsa"]
-        )
-        if evidence is None:
+        if tariff_context == "terminal Itau":
+            return TariffGuidance(
+                page_hint="pagina 7",
+                message=(
+                    "O saque em terminal de autoatendimento custa R$ 6,50 quando excede a "
+                    "quantidade gratuita ou incluida no pacote. Em contas exclusivamente "
+                    "eletronicas, essa tarifa nao pode ser cobrada nesse canal."
+                ),
+            )
+        if tariff_context == "Banco24Horas":
+            return TariffGuidance(
+                page_hint="pagina 7",
+                message=(
+                    "Para saque em correspondente no pais, a tarifa avulsa indicada e R$ 2,25. "
+                    "No Banco24Horas, a cobranca depende da franquia do pacote; diga qual e o seu "
+                    "pacote para eu confirmar a regra aplicavel."
+                ),
+            )
+        if tariff_context != "conta corrente":
             return None
 
-        page_hint = self._extract_page_hint(evidence.title)
         return TariffGuidance(
-            page_hint=page_hint,
+            page_hint="pagina 7",
             message=(
-                "Claro. Para saque em conta corrente, os primeiros saques previstos na quantidade mensal "
+                "Para saque em conta corrente, a tarifa avulsa e R$ 6,50 no atendimento presencial "
+                "ou terminal de autoatendimento, e R$ 2,25 em correspondente no pais. Os primeiros saques "
+                "previstos na quantidade mensal "
                 "do seu pacote podem ser feitos em qualquer canal. Depois dessa franquia, os saques seguintes "
                 "devem seguir os canais previstos, como caixas eletronicos e Banco24Horas. Pode haver "
-                "tarifa avulsa se voce ultrapassar a quantidade incluida no pacote ou usar um canal fora "
-                "das regras do seu pacote. Pelo app, procure por 'tarifas e pacotes' para conferir o valor "
-                "aplicavel ao seu pacote atual."
+                "tarifa avulsa se voce ultrapassar a quantidade incluida ou usar um canal fora das regras. "
+                "Para validar sua franquia, consulte 'tarifas e pacotes' no app."
             ),
         )
 

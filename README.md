@@ -22,6 +22,7 @@ Em 18 de julho de 2026, o projeto já possui:
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 - RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
+- catalogo curado e versionado por produto em `knowledge/catalog/products.json`, com PostgreSQL/pgvector no caminho Docker
 - respostas documentais de tarifa com fallback seguro, copy de atendimento ao cliente e sintese LLM grounded quando um provider estiver habilitado
 - RAG refatorado em `app/services/knowledge/` com modulos separados para config, schemas, ingestao, retrieval, reranking, tokenizacao, service e sintese
 - provider OpenAI opcional para FAQ/RAG grounded via Responses API, desligado por padrao e com fallback local deterministico
@@ -109,6 +110,8 @@ Resultado validado em 18 de julho de 2026:
 - `35 passed, 2 warnings` apos preflight Pix com limite diario, alerta de chave suspeita e bloqueio de credenciais sensiveis no chat
 - `38 passed, 2 warnings` apos aumento de limite multi-turno com consulta de perfil, elegibilidade, confirmacao HITL, checkpoint e auditoria
 - `39 passed, 2 warnings` apos polimento de chat RAG/LLM para tarifas, sem fontes visiveis no chat do cliente e com fallback controlado quando provider LLM falha
+- `48 passed, 2 warnings` apos catalogo curado por produto, embedding deterministico, resposta grounded de consignado INSS, adapter PostgreSQL/pgvector e correcao do timeout de fallback
+- `59 passed, 2 warnings` localmente e no container apos persistencia completa de chunks/fontes, respostas objetivas, isolamento de testes e failover OpenAI -> Gemma configuravel
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -119,6 +122,7 @@ docker compose up --build
 
 Servicos previstos:
 
+- PostgreSQL/pgvector: persistencia da KB em `127.0.0.1:5432` para uso local e inspecao pelo DBeaver
 - API: `http://localhost:8000`
 - Chat do cliente: `http://localhost:8501`
 - Painel tecnico: `http://localhost:8502`
@@ -132,6 +136,43 @@ $env:INTERNAL_TOOL_API_KEY="<chave-interna>"
 
 O PDF oficial de tarifas em `.docs/tabela_geral_de_tarifas_pf_pdf.pdf` e versionado no repositorio e copiado para a imagem Docker. A imagem do desafio em `.docs/desafio.png` permanece fora do Git.
 
+### Knowledge Base Curada
+
+A fonte canônica da KB local e o catalogo versionado em `knowledge/catalog/products.json`. Cada registro
+possui id estavel, produto, topico, publico, versao, data de revisao, fonte e limitacoes. No Compose,
+a API persiste os fatos curados em `knowledge_documents`, as origens em `knowledge_sources` e o conteudo
+fragmentado do PDF e dos snapshots oficiais em `knowledge_chunks`. A busca combina indice textual e
+similaridade pgvector; nenhuma consulta web acontece durante o atendimento. Localmente e em CI, o mesmo
+catalogo funciona sem banco com retrieval em memoria.
+
+O PDF de tarifas continua versionado como evidencia de origem e seus chunks, pagina e hash ficam
+persistidos no banco. Fatos que exigem associacao precisa entre colunas, como servico, canal e valor,
+sao curados em registros estruturados para evitar interpretacao incorreta do layout. Para adicionar conhecimento:
+
+1. criar ou revisar um registro no catalogo;
+2. manter uma afirmacao factual curta e uma fonte rastreavel;
+3. registrar limitacoes para valores, taxas, vigencia e elegibilidade;
+4. rodar `pytest` local;
+5. reconstruir o Compose para validar seed, persistencia e retrieval PostgreSQL.
+
+O caso obrigatorio de consignado INSS responde que nao existe taxa unica aplicavel a todos quando a
+fonte recuperada nao sustenta esse numero, orienta a simulacao vigente e preserva a pagina oficial no
+payload de grounding.
+
+#### DBeaver
+
+Com o Compose em execucao, crie uma conexao PostgreSQL com:
+
+- Host: `127.0.0.1`
+- Porta: `5432` (ou o valor de `POSTGRES_HOST_PORT`)
+- Database: `itau_agent`
+- Usuario: `itau`
+- Senha: `itau`
+- SSL: desabilitado para o ambiente local
+
+As tabelas de interesse sao `knowledge_sources`, `knowledge_chunks` e `knowledge_documents`. O volume
+Docker `knowledge-data` preserva os dados entre restarts dos containers.
+
 ### Observabilidade LangSmith
 
 O projeto roda sem credenciais externas. Para enviar traces ao LangSmith, configure as variáveis antes de iniciar a API:
@@ -144,52 +185,93 @@ $env:LANGSMITH_PROJECT="itau-intelligent-banking-agent"
 
 O painel técnico mostra o status em `Observability`.
 
-### FAQ/RAG com Sintese Opcional
+### Planner Agentic e FAQ/RAG com OpenAI
 
-O projeto permanece executavel sem credenciais externas. A primeira fronteira de LLM foi adicionada apenas para sintese documental grounded e fica desligada por padrao:
+O runtime usa a Responses API em duas fronteiras separadas: um planner que seleciona exatamente uma
+capability registrada por function calling e um sintetizador documental grounded. O modelo propoe;
+o Agent Harness valida RBAC, politicas, dados, HITL e auditoria antes de executar qualquer efeito.
 
-```powershell
-$env:LLM_GROUNDED_FAQ_ENABLED="true"
-$env:LLM_PROVIDER="openai"
-$env:OPENAI_API_KEY="<sua-chave>"
-$env:LLM_MODEL="gpt-5.6-luna"
+```env
+LLM_GROUNDED_FAQ_ENABLED=true
+LLM_PROVIDER=openai
+LLM_FALLBACK_PROVIDER=docker_model_runner
+LLM_MODEL=gpt-5.6-sol
+LLM_REASONING_EFFORT=low
+AGENTIC_PLANNER_ENABLED=true
+PROMPT_PROFILE=banking-v1
+OPENAI_API_KEY=<configure somente no .env ignorado pelo Git>
 ```
 
-Sem `OPENAI_API_KEY`, ou se a chamada externa falhar, o sistema usa fallback local deterministico. A LLM nao recebe tools, estado bancario mutavel, permissoes, checkpoints ou autorizacao para side effects. Perguntas sem fonte oficial suficiente continuam em fallback seguro. As fontes e o contexto aprovado ficam no payload do Harness e no painel tecnico; o chat do cliente recebe apenas a resposta em linguagem natural.
+Os prompts versionados ficam em `prompts/manifest.json` e `prompts/banking-v1/`. O trace registra
+perfil, versao e hash do prompt, modelo, function tool selecionada, rota, fallback, tokens e duracao.
+Sem chave, quota ou provider, o router deterministico mantem a aplicacao utilizavel; esse fallback e
+resiliencia, nao evidencia de uma execucao LLM bem-sucedida.
+
+Em 20 de julho de 2026, a integracao real com `gpt-5.6-sol` selecionou
+`get_customer_balance` via function calling, retornou `planner.fallback_used=false` e registrou
+466 tokens. O Harness executou a consulta nativa somente depois da selecao do planner.
 
 ### FAQ/RAG com Docker Model Runner
 
-Tambem e possivel usar um modelo local via Docker Model Runner, mantendo a mesma interface OpenAI-compatible e o mesmo fallback deterministico:
+Tambem e possivel usar um modelo local via Docker Model Runner, mantendo a mesma interface OpenAI-compatible:
 
 ```powershell
 docker desktop enable model-runner --tcp 12434
-docker model pull ai/smollm2
+docker model pull gemma4:latest
 $env:LLM_GROUNDED_FAQ_ENABLED="true"
 $env:LLM_PROVIDER="docker_model_runner"
 $env:DOCKER_MODEL_RUNNER_BASE_URL="http://localhost:12434/engines/v1"
-$env:DOCKER_MODEL_RUNNER_MODEL="ai/smollm2"
+$env:DOCKER_MODEL_RUNNER_MODEL="gemma4:latest"
 ```
 
 Para Docker Compose, o `docker-compose.yml` ja aponta containers para `http://host.docker.internal:12434/engines/v1` quando `LLM_PROVIDER=docker_model_runner`. Em Docker Desktop no Windows, esse endpoint e o caminho mais direto para o container acessar o Model Runner que esta rodando no host.
 
-O Model Runner e opcional: o projeto continua subindo sem ele. A API do Model Runner nao e autenticada, portanto deve ficar restrita ao ambiente local/interno da demo.
+O Model Runner e opcional: o projeto continua subindo sem ele. `LLM_PROVIDER` escolhe o provider primario
+e `LLM_FALLBACK_PROVIDER` habilita a cascata OpenAI -> Gemma -> sintetizador deterministico sem alterar
+codigo. O planner volta ao roteador deterministico se a OpenAI falhar; o Gemma atua somente na sintese
+documental e recebe contexto aprovado pelo Harness. Em producao, essa politica pode ser movida para um
+gateway de LLM com timeout, circuit breaker e health check, mantendo a aplicacao ligada a um unico
+endpoint OpenAI-compatible. A API local do Model Runner nao e autenticada e deve ficar restrita ao ambiente interno.
+
+Modelos locais candidatos para benchmark posterior:
+
+- `ai/qwen3:latest`
+- `ai/gemma3:latest`
+- `ai/gpt-oss:latest`
+
+Esses modelos nao sao baixados automaticamente e nao fazem parte do `pytest`, Docker build ou CI. A
+selecao do modelo default sera feita por uma golden set comum, medindo grounding, abstencao, prompt
+leak, latencia, tokens, memoria e disco. LLM-as-judge sera uma avaliacao offline e opt-in; o runtime
+continuara com um unico modelo configurado e fallback deterministico, sem cascata automatica entre
+modelos pesados.
 
 Evidencia local em 18 de julho de 2026: `docker model status` reportou `Docker Model Runner is running`, `docker model list` encontrou `ai/smollm2`, e o provider `docker_model_runner` respondeu sem fallback com `token_usage`.
 
-### Evolucao Para Chat Inteligente
+### Fluxo Agentic Controlado
 
-A demo usa LLM apenas na sintese documental grounded de FAQ/RAG. A evolucao planejada do chat acontece em duas ondas:
+O planner recebe somente a mensagem corrente e uma allowlist de capabilities. Ele escolhe busca
+oficial, saldo, limite, Pix ou protecao emergencial. A decisao segue para o Harness e para o LangGraph;
+o modelo nunca recebe credenciais, endpoints internos ou autoridade para executar diretamente.
 
-1. Conversa mais natural com memoria curta e coleta de dados multi-turno, mantendo roteamento, RBAC, HITL, auditoria e execucao de tools no Harness deterministico.
-2. LLM como planejadora/explicadora controlada, propondo proximos passos e chamadas MCP, mas sem executar operacoes bancarias diretamente. O Harness continua validando perfil, autorizacao, politica de risco, confirmacao e auditoria antes de qualquer side effect.
+```text
+mensagem -> guardrails -> planner OpenAI -> capability allowlist -> Harness/RBAC
+         -> LangGraph -> tool/workflow -> HITL/audit -> resposta
+```
+
+O aumento de limite e o Pix demonstram coleta multi-turno e confirmacao. Se a LLM falhar, o mesmo
+workflow continua pelo router deterministico e o dashboard identifica explicitamente o fallback.
 
 Para tarifas, a ordem atual e:
 
-1. Harness classifica a pergunta documental.
+1. Harness classifica a pergunta documental e resolve perguntas estaveis de navegacao por fast path, sem aguardar LLM.
 2. Harness recupera e ranqueia contexto oficial aprovado.
-3. Se houver LLM habilitada, a LLM sintetiza uma resposta curta sem citar arquivos, URLs, paginas ou "fontes" na conversa do cliente.
+3. Se houver LLM habilitada, a LLM sintetiza uma resposta curta e inclui uma referencia institucional amigavel, sem expor arquivos, URLs ou paginas.
 4. Se a LLM estiver desligada, ausente ou falhar, o builder controlado de tarifas responde sem despejar tabela crua do PDF.
 5. Em todos os casos, `grounding_sources`, prompt, contexto aprovado, provider/model, fallback e token usage permanecem disponiveis no payload tecnico e no painel do avaliador.
+
+O chat usa um timeout maior que o budget do provider LLM. Assim, se o Model Runner ou o modelo
+configurado estiver indisponivel, a API consegue concluir o fallback antes de o Streamlit abandonar
+a requisicao. Alteracoes nesses budgets devem preservar essa ordem.
 
 ## MCP, Tools e Resources
 
@@ -197,6 +279,10 @@ O projeto expõe duas camadas para representar o item MCP do desafio sem permiti
 
 1. REST interno protegido em `/v1/mcp/*`, usado pela demo local e pelo painel tecnico.
 2. Servidor MCP real em `app.mcp.server`, publicado no Compose em `http://localhost:8600/mcp`.
+
+O servidor MCP real publica `get_customer_profile`, `get_card_limit`, `update_card_limit` e
+`create_pix`, alem das tools de knowledge e Harness. As duas tools de escrita apenas iniciam o
+workflow controlado: elegibilidade, politica, confirmacao/HITL e auditoria continuam obrigatorias.
 
 Nesta demo, os tools MCP-style usam REST interno como transporte local. Isso nao muda a arquitetura: MCP e o contrato de tools/resources para o agente; REST e apenas o adapter interno simples usado para executar e demonstrar essas tools localmente. Um servidor MCP real pode substituir esse adapter preservando o Harness, RBAC, HITL, auditoria e os nomes das tools.
 
@@ -308,12 +394,15 @@ Checklist rápido:
 - spans LangSmith opcionais instrumentam Harness, roteamento, nós, PIX, HITL e RAG
 - checkpoints de confirmação aparecem como estado pendente
 - a trilha de auditoria crítica pode ser inspecionada sem sair da demo
-- o trace tecnico mostra prompt, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo quando o fluxo usa LLM/RAG
+- o trace tecnico separa planner e compositor e mostra capability proposta, rota, prompt version/hash, contexto aprovado, tools chamadas, provider/model, fallback, token usage e tempo
 - o painel técnico usa refresh manual para reduzir ruído durante a apresentação
 
 ### FAQ Fast Path
 
 - resposta grounded para perguntas documentais simples
+- catalogo curado por produto com ids, versao, publico, fonte, revisao e limitacoes
+- PostgreSQL/pgvector no Compose e fallback local em memoria para testes reproduziveis
+- caso de consignado INSS para aposentados e pensionistas com abstencao de taxa nao sustentada
 - PDF local de tarifas ingerido em chunks com cache em `.runtime/knowledge_tariff_chunks.json`
 - respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
@@ -335,6 +424,7 @@ Checklist rápido:
 
 ## Próximos Passos
 
+- adicionar ao painel tecnico um diagrama do fluxo da ultima resposta, derivado do trace real do Harness e sem expor chain-of-thought
 - validar manualmente `SLICE-LLM-GROUNDED-FAQ` com `OPENAI_API_KEY` real, mantendo o mesmo contrato de contexto aprovado
 - acompanhar GitHub Actions para confirmar `pytest` e `docker build`
 - depois da LLM documental, expandir multi-turno de RAG para servico, tipo de conta, pacote e canal

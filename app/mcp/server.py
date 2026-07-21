@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import httpx
+
 from app.config import settings
 from app.schemas.messages import ChatRequest
-from app.services.harness import DemoHarness
 from app.services.knowledge_base import knowledge_service
 from app.services.mcp_registry import mcp_tool_registry
 from app.services.observability import langsmith_status
+from app.security.identity import identity_service
 
 try:
     from mcp.server.fastmcp import FastMCP
@@ -29,9 +31,6 @@ mcp = FastMCP(
     ),
 )
 
-_harness = DemoHarness()
-
-
 @mcp.resource("itau://mcp/tools")
 def mcp_tools() -> dict:
     """List banking tools exposed by the protected internal boundary."""
@@ -54,11 +53,87 @@ def search_tariff_knowledge(query: str) -> dict:
 
 
 @mcp.tool()
+def get_customer_profile(
+    auth_token: str,
+    target_customer_id: str,
+) -> dict:
+    """Read a customer profile after native RBAC validation."""
+
+    return _get_profile_from_api(auth_token, target_customer_id)
+
+
+def _get_profile_from_api(auth_token: str, target_customer_id: str) -> dict:
+    identity_service.authenticate(auth_token, target_customer_id)
+    response = httpx.get(
+        f"{settings.api_internal_base_url}/mcp/users/profile/{target_customer_id}",
+        headers={"X-Internal-Tool-Key": settings.internal_tool_api_key},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+@mcp.tool()
+def get_card_limit(
+    auth_token: str,
+    target_customer_id: str,
+) -> dict:
+    """Read card-limit data after native RBAC validation."""
+
+    profile = _get_profile_from_api(auth_token, target_customer_id)
+    return {
+        "customer_id": profile["customer_id"],
+        "card_limit": profile["card_limit"],
+        "available_limit": profile["available_limit"],
+        "card_status": profile["card_status"],
+    }
+
+
+@mcp.tool()
+def update_card_limit(
+    session_id: str,
+    customer_id: str,
+    new_limit: float,
+    auth_token: str,
+) -> dict:
+    """Start the Harness-owned limit workflow; eligibility and confirmation remain mandatory."""
+
+    return _send_to_api(
+        auth_token,
+        ChatRequest(
+            session_id=session_id,
+            customer_id=customer_id,
+            message=f"Quero aumentar o limite do meu cartao para R$ {new_limit:.2f}",
+        ),
+    )
+
+
+@mcp.tool()
+def create_pix(
+    session_id: str,
+    customer_id: str,
+    amount: float,
+    destination_key: str,
+    auth_token: str,
+) -> dict:
+    """Start the Harness-owned Pix workflow with policy checks and HITL when required."""
+
+    return _send_to_api(
+        auth_token,
+        ChatRequest(
+            session_id=session_id,
+            customer_id=customer_id,
+            message=f"Quero fazer um Pix de R$ {amount:.2f} para a chave {destination_key}",
+        ),
+    )
+
+
+@mcp.tool()
 def send_agent_message(
+    auth_token: str,
     session_id: str,
     customer_id: str,
     message: str,
-    role: str = "customer",
 ) -> dict:
     """Send a customer turn through the Agent Harness with RBAC, HITL and audit controls."""
 
@@ -66,9 +141,20 @@ def send_agent_message(
         session_id=session_id,
         customer_id=customer_id,
         message=message,
-        role=role,
     )
-    return _harness.handle_message(payload)
+    return _send_to_api(auth_token, payload)
+
+
+def _send_to_api(auth_token: str, payload: ChatRequest) -> dict:
+    identity_service.authenticate(auth_token, payload.customer_id)
+    response = httpx.post(
+        f"{settings.api_internal_base_url}/channels/app/chat",
+        headers={"X-Demo-Auth-Token": auth_token},
+        json=payload.model_dump(),
+        timeout=settings.llm_timeout_seconds + 5,
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 @mcp.tool()

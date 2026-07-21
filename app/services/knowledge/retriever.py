@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+from app.config import settings
 from app.services.knowledge.ingestion import build_official_documents
 from app.services.knowledge.schemas import KnowledgeDocument, RetrievedKnowledge
 from app.services.knowledge.tokenization import tokenize
@@ -9,6 +10,13 @@ from app.services.knowledge.tokenization import tokenize
 
 class LocalHybridRetriever:
     def __init__(self, documents: list[KnowledgeDocument] | None = None) -> None:
+        self._postgres_store = None
+        if documents is None and settings.knowledge_store == "postgres":
+            from app.services.knowledge.postgres_store import PostgresKnowledgeStore
+
+            self._postgres_store = PostgresKnowledgeStore(
+                settings.database_url, settings.knowledge_embedding_dimensions
+            )
         self._documents = documents or build_official_documents()
         self._tokenized_documents = [self._tokenize(document.text) for document in self._documents]
         self._document_frequency = self._build_document_frequency()
@@ -25,7 +33,13 @@ class LocalHybridRetriever:
     def documents(self) -> list[KnowledgeDocument]:
         return list(self._documents)
 
+    @property
+    def store_name(self) -> str:
+        return "postgres" if self._postgres_store is not None else "local"
+
     def retrieve(self, query: str, top_k: int = 2) -> list[RetrievedKnowledge]:
+        if self._postgres_store is not None:
+            return self._postgres_store.search(query, top_k)
         query_terms = self._tokenize(query)
         if not query_terms:
             return []
