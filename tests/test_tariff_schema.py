@@ -40,6 +40,7 @@ def test_tariff_schema_preserves_pages_rules_packages_and_safe_publication() -> 
     PostgresKnowledgeStore("postgresql://unused")._ensure_schema(cursor)  # noqa: SLF001
 
     sql = "\n".join(cursor.statements)
+    assert "create table if not exists knowledge_documents" not in sql
     for table in (
         "knowledge_facts",
         "fact_evidence",

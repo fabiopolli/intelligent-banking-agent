@@ -290,30 +290,6 @@ class PostgresKnowledgeStore:
     def _ensure_schema(self, cursor) -> None:  # noqa: ANN001
         cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
         cursor.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS knowledge_documents (
-                knowledge_id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                source TEXT NOT NULL,
-                content TEXT NOT NULL,
-                product TEXT NOT NULL,
-                topic TEXT NOT NULL,
-                audience TEXT NOT NULL,
-                version INTEGER NOT NULL,
-                status TEXT NOT NULL,
-                reviewed_at DATE NOT NULL,
-                limitations TEXT NOT NULL DEFAULT '',
-                embedding vector({self._dimensions}) NOT NULL,
-                search_vector tsvector GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,
-                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS knowledge_documents_search_idx "
-            "ON knowledge_documents USING GIN (search_vector)"
-        )
-        cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS knowledge_sources (
                 source_id TEXT PRIMARY KEY,
