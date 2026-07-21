@@ -112,7 +112,7 @@ Resultado validado em 18 de julho de 2026:
 - `39 passed, 2 warnings` apos polimento de chat RAG/LLM para tarifas, sem fontes visiveis no chat do cliente e com fallback controlado quando provider LLM falha
 - `48 passed, 2 warnings` apos catalogo curado por produto, embedding deterministico, resposta grounded de consignado INSS, adapter PostgreSQL/pgvector e correcao do timeout de fallback
 - `59 passed, 2 warnings` localmente e no container apos persistencia completa de chunks/fontes, respostas objetivas, isolamento de testes e failover OpenAI -> Gemma configuravel
-- `78 passed, 2 warnings` localmente e no container apos reconciliacao integral das 25 paginas do PDF, catalogo estruturado completo e correcao do header de autenticacao do chat
+- `79 passed, 2 warnings` localmente e no container apos reconciliacao integral das 25 paginas do PDF, catalogo estruturado completo, correcao do header de autenticacao e encerramento conversacional do chat
 - Docker local validado com `docker build`, `docker compose up --build -d`, smoke HTTP da API/chat/painel/MCP, KB com `pdf_ingested=true`, cliente MCP Streamable HTTP real e `pytest` dentro do container API (`30 passed, 2 warnings`)
 
 ### Docker Compose
@@ -161,8 +161,9 @@ O catálogo da tabela PF vigente em 01/07/2026 foi reconciliado visualmente nas 
 
 Os quatro registros bloqueados representam duas contradições existentes no próprio PDF entre as
 páginas físicas 17 e 20: avaliação de bem em garantia (`R$ 748,00` versus `R$ 709,00`) e cadastro de
-financiamento (`R$ 1.149,00` versus `R$ 1.025,00`). O chat não escolhe arbitrariamente um valor; ele
-informa a divergência com segurança. `knowledge/catalog/tariff_reconciliation.json` contabiliza
+financiamento (`R$ 1.149,00` versus `R$ 1.025,00`). O chat não escolhe arbitrariamente um valor nem
+expõe a divergência interna ao cliente: informa apenas que não consegue confirmar a tarifa e orienta
+um canal seguro de consulta. `knowledge/catalog/tariff_reconciliation.json` contabiliza
 linhas canônicas, aliases, pacotes, itens e regras página a página.
 
 O PDF de tarifas continua versionado como evidencia de origem e seus chunks, pagina e hash ficam
@@ -428,6 +429,7 @@ Checklist rápido:
 - caso de consignado INSS para aposentados e pensionistas com abstencao de taxa nao sustentada
 - PDF local de tarifas ingerido em chunks com cache em `.runtime/knowledge_tariff_chunks.json`
 - respostas de tarifa usam answer builder controlado com texto de atendimento ao cliente, sem despejar tabelas cruas do PDF
+- respostas documentais terminam com um convite breve para o cliente continuar a conversa
 - follow-ups curtos de tarifa, como "Saque!", continuam no fluxo controlado de tarifas
 - follow-ups com contexto, como "Saque conta corrente", nao repetem a mesma pergunta de contexto
 - tarifa, FAQ e politicas podem usar o provider LLM opcional quando ha fonte oficial recuperada

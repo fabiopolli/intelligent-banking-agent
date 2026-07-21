@@ -154,7 +154,7 @@ class GroundedKnowledgeService:
         llm_trace: dict | None,
     ) -> dict:
         return {
-            "message": message,
+            "message": self._with_conversation_follow_up(message),
             "sources": sources,
             "observability": {
                 "tools_called": tools_called,
@@ -182,6 +182,12 @@ class GroundedKnowledgeService:
                 },
             },
         }
+
+    def _with_conversation_follow_up(self, message: str) -> str:
+        follow_up = "Posso ajudar com mais alguma dúvida?"
+        if follow_up.lower() in message.lower():
+            return message
+        return f"{message.rstrip()} {follow_up}"
 
     def _is_supported_documental_query(self, query: str) -> bool:
         query_terms = set(self._retriever._tokenize(query))

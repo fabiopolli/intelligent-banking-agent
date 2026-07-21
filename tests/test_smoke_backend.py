@@ -610,7 +610,8 @@ def test_grounded_faq_synthesizer_receives_only_retrieved_official_context() -> 
 
     message, sources = service.answer("Como falo com o Itau pelo WhatsApp?")
 
-    assert message == "Resposta sintetizada somente com contexto oficial recuperado."
+    assert message.startswith("Resposta sintetizada somente com contexto oficial recuperado.")
+    assert message.endswith("Posso ajudar com mais alguma dúvida?")
     assert sources == ["https://www.itau.com.br/atendimento-itau/para-voce"]
     assert synthesizer.calls == [
         ("Como falo com o Itau pelo WhatsApp?", ["https://www.itau.com.br/atendimento-itau/para-voce"])

@@ -107,6 +107,7 @@ def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> No
     assert not result["message"].lower().startswith("claro")
     assert "R$ 6,50" in result["message"]
     assert "R$ 2,25" in result["message"]
+    assert result["message"].endswith("Posso ajudar com mais alguma dúvida?")
     assert result["sources"] == [".docs/tabela_geral_de_tarifas_pf_pdf.pdf"]
 
 
@@ -152,8 +153,21 @@ def test_conflicting_financing_values_are_not_published_to_customer() -> None:
 
     assert "R$ 1.149,00" not in result["message"]
     assert "R$ 1.025,00" not in result["message"]
-    assert "valores divergentes" in result["message"]
+    assert "PDF" not in result["message"]
+    assert "diverg" not in result["message"].lower()
+    assert "Não consigo confirmar o valor" in result["message"]
+    assert "app Itaú" in result["message"]
+    assert result["message"].endswith("Posso ajudar com mais alguma dúvida?")
     assert "grounded_faq_synthesizer" not in result["observability"]["tools_called"]
+
+
+def test_knowledge_follow_up_is_not_duplicated() -> None:
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace("Qual a anuidade do Itau Click Platinum?")
+
+    assert result["message"].count("Posso ajudar com mais alguma dúvida?") == 1
 
 
 def test_exact_card_and_ccme_queries_do_not_return_neighboring_tariffs() -> None:

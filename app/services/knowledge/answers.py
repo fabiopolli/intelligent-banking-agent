@@ -21,8 +21,9 @@ class TariffAnswerBuilder:
 
         if self._has_blocked_conflict(normalized_query):
             return (
-                "O PDF oficial traz valores divergentes para esse serviço. Por segurança, não vou informar "
-                "um valor até a fonte ser corrigida pelo Itaú."
+                "Não consigo confirmar o valor dessa tarifa com segurança neste momento. "
+                "Para consultar o valor vigente, acesse 'tarifas e pacotes' no app Itaú "
+                "ou fale com um especialista."
             )
 
         structured = self._find_structured_entries(normalized_query)
