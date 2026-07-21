@@ -88,7 +88,8 @@ def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str
 
     for item in st.session_state["chat_history"]:
         with st.chat_message(item["role"]):
-            st.write(item["content"])
+            # Streamlit treats an unescaped dollar sign as a Markdown math delimiter.
+            st.write(str(item["content"]).replace("$", r"\$"))
 
     with st.form("customer_chat_form", clear_on_submit=False):
         message = st.text_area("Mensagem", value=st.session_state["selected_prompt"], height=120)

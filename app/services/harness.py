@@ -117,6 +117,12 @@ class DemoHarness:
             return self._resume_pending_operation(payload, auth)
         if self._has_collectable_limit_draft(payload):
             return self._dispatch("core_banking_limit", payload, auth)
+        conversation_context = self._workflow_graph.observe_conversation(
+            payload.session_id,
+            payload.message,
+        )
+        if self._is_contextual_limit_increase(payload, conversation_context):
+            return self._dispatch("core_banking_limit", payload, auth)
         enriched_payload = self._enrich_documental_followup(payload)
         planner_message = self._guardrails_service.redact_for_llm(enriched_payload.message)
         route = self._classify_intent(planner_message)
@@ -141,6 +147,7 @@ class DemoHarness:
         elif route == "core_banking_limit" and (
             self._is_limit_increase_request(payload.message)
             or self._checkpoints.get_limit_draft(payload.session_id) is not None
+            or self._is_contextual_limit_increase(payload)
         ):
             access = "write"
         if route != "faq_fast_path":
@@ -221,6 +228,7 @@ class DemoHarness:
         if route == "core_banking_limit" and (
             self._is_limit_increase_request(payload.message)
             or self._checkpoints.get_limit_draft(payload.session_id) is not None
+            or self._is_contextual_limit_increase(payload)
         ):
             return self._handle_limit_increase(payload, auth)
 
@@ -385,7 +393,10 @@ class DemoHarness:
             raw_amount = raw_amount.replace(".", "").replace(",", ".")
         elif re.fullmatch(r"\d{1,3}(?:\.\d{3})+", raw_amount):
             raw_amount = raw_amount.replace(".", "")
-        return float(raw_amount)
+        amount = float(raw_amount)
+        if re.search(rf"{re.escape(match.group(1))}mil\b", normalized):
+            amount *= 1000
+        return amount
 
     def _extract_destination_key(self, message: str) -> str | None:
         normalized = self._normalize(message)
@@ -437,6 +448,15 @@ class DemoHarness:
         normalized = self._normalize(message)
         increase_terms = {"aumentar", "aumento", "elevar", "subir", "alterar"}
         return "limite" in normalized and any(term in normalized for term in increase_terms)
+
+    def _is_contextual_limit_increase(self, payload: ChatRequest, context: dict | None = None) -> bool:
+        if context is None:
+            context = self._workflow_graph.observe_conversation(payload.session_id, payload.message)
+        return (
+            context.get("current_topic") == "card_limit"
+            and bool(context.get("requests_limit_change"))
+            and self._extract_amount(payload.message) is not None
+        )
 
     def _enrich_documental_followup(self, payload: ChatRequest) -> ChatRequest:
         draft = self._checkpoints.get_documental_draft(payload.session_id)

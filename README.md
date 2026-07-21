@@ -20,6 +20,8 @@ Em 18 de julho de 2026, o projeto já possui:
 - Docker e GitHub Actions básicos
 - abstração de workflow graph preparada para futura integração com LangGraph real
 - `LangGraph` instalado na venv e `StateGraph` ativo em runtime
+- memória conversacional estruturada por `session_id` em um subgrafo LangGraph, sem persistir a
+  mensagem bruta; por exemplo, `Qual meu limite?` seguido de `Aumenta para 10 mil`
 - trilha de auditoria append-only para `PIX`, `LIMIT_CHANGE` e `CARD_BLOCKED`
 - RAG local com ingestao real do PDF de tarifas, snapshots oficiais de atendimento/politicas, cache runtime, reranking local e grounding sources
 - catalogo curado e versionado por produto em `knowledge/catalog/products.json`, com PostgreSQL/pgvector no caminho Docker

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.graph.state import WorkflowNode, WorkflowRoute, WorkflowState
+from app.graph.conversation_context import ConversationContextGraph, ConversationContextState
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
 from app.schemas.messages import ChatRequest
@@ -18,11 +19,15 @@ except ImportError:  # pragma: no cover - exercised through fallback path
 class DemoWorkflowGraph:
     def __init__(self, orchestrator: DemoOrchestrator) -> None:
         self._orchestrator = orchestrator
+        self._conversation_context = ConversationContextGraph()
         self._compiled_graph = self._build_langgraph() if StateGraph is not None else None
 
     @property
     def uses_langgraph(self) -> bool:
         return self._compiled_graph is not None
+
+    def observe_conversation(self, session_id: str, message: str) -> ConversationContextState:
+        return self._conversation_context.observe(session_id, message)
 
     def invoke(
         self,

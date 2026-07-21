@@ -388,6 +388,8 @@ def test_limit_increase_requires_confirmation_and_updates_after_resume() -> None
     assert checkpoint_body["limit_details"]["current_limit"] == 10000.0
     assert checkpoint_body["limit_details"]["requested_limit"] == 15000.0
     assert checkpoint_body["limit_details"]["eligible"] is True
+    assert "nesta demo" not in checkpoint_body["message"].lower()
+    assert "R$ 15.000,00" in checkpoint_body["message"]
 
     resume_response = client.post(
         "/v1/channels/app/chat",
@@ -404,6 +406,7 @@ def test_limit_increase_requires_confirmation_and_updates_after_resume() -> None
     assert resume_body["requires_confirmation"] is False
     assert resume_body["limit_details"]["current_limit"] == 15000.0
     assert resume_body["limit_details"]["available_limit"] == 15000.0
+    assert "R$ 15.000,00" in resume_body["message"]
 
     profile_response = client.get("/v1/mcp/users/profile/123", headers=INTERNAL_TOOL_HEADERS)
     assert profile_response.status_code == 200
@@ -413,6 +416,36 @@ def test_limit_increase_requires_confirmation_and_updates_after_resume() -> None
     audit_response = client.get("/v1/mcp/audit/123", headers=INTERNAL_TOOL_HEADERS)
     assert audit_response.status_code == 200
     assert audit_response.json()[-1]["event_type"] == "LIMIT_CHANGE"
+
+
+def test_limit_query_context_allows_followup_increase_without_repeating_subject() -> None:
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "limit-context-session",
+            "customer_id": "456",
+            "message": "Qual meu limite?",
+        },
+    )
+
+    assert first_response.status_code == 200
+    assert first_response.json()["route"] == "core_banking"
+
+    second_response = client.post(
+        "/v1/channels/app/chat",
+        json={
+            "session_id": "limit-context-session",
+            "customer_id": "456",
+            "message": "Aumenta para 10 mil",
+        },
+    )
+
+    assert second_response.status_code == 200
+    body = second_response.json()
+    assert body["route"] == "core_banking"
+    assert body["requires_confirmation"] is True
+    assert body["pending_operation"] == "update_card_limit"
+    assert body["limit_details"]["requested_limit"] == 10000.0
 
 
 def test_limit_increase_without_amount_collects_details() -> None:

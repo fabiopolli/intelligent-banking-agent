@@ -6,6 +6,11 @@ from app.schemas.outbound import BalanceResponse, CustomerProfileResponse
 
 
 class ResponseBuilder:
+    @staticmethod
+    def _format_brl(value: float) -> str:
+        rendered = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return f"R$ {rendered}"
+
     def social(self, session_id: str, message: str) -> HarnessResponse:
         return HarnessResponse(
             route="social_fast_path",
@@ -42,8 +47,8 @@ class ResponseBuilder:
             route="core_banking",
             session_id=session_id,
             message=(
-                f"Seu limite atual e R$ {profile.card_limit:.2f}. "
-                f"Seu limite disponivel e R$ {profile.available_limit:.2f}."
+                f"Seu limite atual e {self._format_brl(profile.card_limit)}. "
+                f"Seu limite disponivel e {self._format_brl(profile.available_limit)}."
             ),
             limit_details={
                 "current_limit": profile.card_limit,
@@ -59,7 +64,7 @@ class ResponseBuilder:
             session_id=session_id,
             message=(
                 "Para avaliar aumento de limite, preciso do novo valor desejado. "
-                f"Seu limite atual e R$ {profile.card_limit:.2f}."
+                f"Seu limite atual e {self._format_brl(profile.card_limit)}."
             ),
             pending_operation="collect_limit_details",
             limit_details={
@@ -80,8 +85,8 @@ class ResponseBuilder:
             route="core_banking",
             session_id=session_id,
             message=(
-                "Seu perfil foi consultado e o novo limite esta elegivel nesta demo. "
-                "Confira o valor antes de enviar confirmo para concluir."
+                f"O novo limite de {self._format_brl(requested_limit)} esta elegivel. "
+                "Confira o valor e envie 'confirmo' para concluir."
             ),
             requires_confirmation=True,
             pending_operation="update_card_limit",
@@ -122,8 +127,8 @@ class ResponseBuilder:
             route="core_banking",
             session_id=session_id,
             message=(
-                f"Limite atualizado com sucesso para R$ {card_limit:.2f}. "
-                f"Limite disponivel atual: R$ {available_limit:.2f}."
+                f"Limite atualizado com sucesso para {self._format_brl(card_limit)}. "
+                f"Limite disponivel atual: {self._format_brl(available_limit)}."
             ),
             limit_details={
                 "current_limit": card_limit,
