@@ -4,6 +4,7 @@ from app.schemas.outbound import (
     AuditEventResponse,
     BalanceResponse,
     CardLimitUpdateRequest,
+    CardUnlockRequest,
     CustomerProfileResponse,
     PixCreateRequest,
 )
@@ -47,6 +48,11 @@ def get_account_balance(customer_id: str) -> BalanceResponse:
 @router.post("/mcp/cards/limit")
 def update_card_limit(payload: CardLimitUpdateRequest) -> dict:
     return mock_bank_service.update_card_limit(payload)
+
+
+@router.post("/mcp/cards/unlock")
+def unlock_card(payload: CardUnlockRequest) -> dict:
+    return mock_bank_service.unlock_card(payload.customer_id)
 
 
 @router.post("/mcp/payments/pix")

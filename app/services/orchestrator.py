@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
 from app.schemas.messages import ChatRequest
-from app.schemas.outbound import CardLimitUpdateRequest, PixCreateRequest
+from app.schemas.outbound import CardLimitUpdateRequest, CardUnlockRequest, PixCreateRequest
 from app.security.rbac import RBACService
 from app.services.customer_support import CustomerSupportService
 from app.services.mock_bank import mock_bank_service
@@ -26,6 +26,11 @@ class PendingPixOperation:
 class PendingLimitOperation:
     customer_id: str
     requested_limit: float
+
+
+@dataclass
+class PendingCardUnlockOperation:
+    customer_id: str
 
 
 class EmergencyNode:
@@ -160,6 +165,22 @@ class TransactionNode:
         response.observability = self._tool_observability()
         return response
 
+    def execute_card_unlock(
+        self,
+        session_id: str,
+        operation: PendingCardUnlockOperation,
+    ) -> HarnessResponse:
+        result = self._internal_systems.unlock_card(
+            CardUnlockRequest(customer_id=operation.customer_id)
+        )
+        response = self._response_builder.card_unlock_success(
+            session_id,
+            str(result["card_status"]),
+            bool(result.get("changed")),
+        )
+        response.observability = self._tool_observability()
+        return response
+
     def get_limit_profile(self, customer_id: str):  # noqa: ANN201
         return self._internal_systems.get_card_limit(customer_id)
 
@@ -250,6 +271,13 @@ class DemoOrchestrator:
 
     def limit_update_execute(self, session_id: str, operation: PendingLimitOperation) -> HarnessResponse:
         return self._transaction.execute_limit_update(session_id, operation)
+
+    def card_unlock_execute(
+        self,
+        session_id: str,
+        operation: PendingCardUnlockOperation,
+    ) -> HarnessResponse:
+        return self._transaction.execute_card_unlock(session_id, operation)
 
     def get_limit_profile(self, customer_id: str):  # noqa: ANN201
         return self._transaction.get_limit_profile(customer_id)

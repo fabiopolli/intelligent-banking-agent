@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid5, NAMESPACE_URL
 
 from app.config import settings
-from app.services.orchestrator import PendingLimitOperation, PendingPixOperation
+from app.services.orchestrator import PendingCardUnlockOperation, PendingLimitOperation, PendingPixOperation
 
 
 class CheckpointStore:
@@ -88,6 +88,33 @@ class CheckpointStore:
             customer_id=str(raw_operation["customer_id"]),
             requested_limit=float(raw_operation["requested_limit"]),
         )
+
+    def save_pending_card_unlock(
+        self,
+        session_id: str,
+        operation: PendingCardUnlockOperation,
+    ) -> None:
+        checkpoints = self._read_all()
+        checkpoints[session_id] = {
+            "type": "pending_card_unlock",
+            "customer_id": operation.customer_id,
+        }
+        self._write_all(checkpoints)
+
+    def get_pending_card_unlock(self, session_id: str) -> PendingCardUnlockOperation | None:
+        raw_operation = self._read_all().get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pending_card_unlock":
+            return None
+        return PendingCardUnlockOperation(customer_id=str(raw_operation["customer_id"]))
+
+    def consume_pending_card_unlock(self, session_id: str) -> PendingCardUnlockOperation | None:
+        checkpoints = self._read_all()
+        raw_operation = checkpoints.get(session_id)
+        if raw_operation is None or raw_operation.get("type") != "pending_card_unlock":
+            return None
+        checkpoints.pop(session_id)
+        self._write_all(checkpoints)
+        return PendingCardUnlockOperation(customer_id=str(raw_operation["customer_id"]))
 
     def save_pix_draft(self, session_id: str, draft: dict[str, str | float]) -> None:
         checkpoints = self._read_all()

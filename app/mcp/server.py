@@ -4,7 +4,7 @@ import httpx
 
 from app.config import settings
 from app.schemas.messages import ChatRequest
-from app.schemas.outbound import CardLimitUpdateRequest, PixCreateRequest
+from app.schemas.outbound import CardLimitUpdateRequest, CardUnlockRequest, PixCreateRequest
 from app.services.knowledge_base import knowledge_service
 from app.services.mcp_registry import mcp_tool_registry
 from app.services.observability import langsmith_status
@@ -131,6 +131,26 @@ def update_card_limit(
             customer_id=target_customer_id,
             new_limit=new_limit,
         ).model_dump(),
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+@mcp.tool()
+def unlock_card(
+    target_customer_id: str,
+    auth_token: str,
+) -> dict:
+    """Unlock a card after admin RBAC and HITL were completed by the Agent Harness."""
+
+    principal = identity_service.authenticate(auth_token, target_customer_id)
+    if principal.role != "admin" or "customer:any:write" not in principal.scopes:
+        raise PermissionError("Administrator write scope is required for card unlock.")
+    response = httpx.post(
+        f"{settings.api_internal_base_url}/mcp/cards/unlock",
+        headers={"X-Internal-Tool-Key": settings.internal_tool_api_key},
+        json=CardUnlockRequest(customer_id=target_customer_id).model_dump(),
         timeout=10.0,
     )
     response.raise_for_status()

@@ -204,13 +204,18 @@ class ResponseBuilder:
 
     def operation_cancelled(self, session_id: str, operation: str) -> HarnessResponse:
         is_pix = operation == "create_pix"
+        is_unlock = operation == "unlock_card"
         return HarnessResponse(
             route="transaction" if is_pix else "core_banking",
             session_id=session_id,
             message=(
                 "Pix não autorizado. Nenhum valor foi transferido."
                 if is_pix
-                else "Alteração de limite não autorizada. Seu limite atual foi mantido."
+                else (
+                    "Desbloqueio não autorizado. O estado do cartão foi mantido."
+                    if is_unlock
+                    else "Alteração de limite não autorizada. Seu limite atual foi mantido."
+                )
             ),
             pending_operation=None,
             requires_confirmation=False,
@@ -220,6 +225,37 @@ class ResponseBuilder:
                     "events": [{"type": "cancelled"}],
                 }
             },
+        )
+
+    def card_unlock_checkpoint(self, session_id: str, card_status: str) -> HarnessResponse:
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=(
+                "A solicitação administrativa de desbloqueio está pronta. "
+                "Confira o cliente e autorize para concluir."
+            ),
+            card_status=card_status,
+            requires_confirmation=True,
+            pending_operation="unlock_card",
+        )
+
+    def card_unlock_success(
+        self,
+        session_id: str,
+        card_status: str,
+        changed: bool,
+    ) -> HarnessResponse:
+        message = (
+            "Cartão desbloqueado com sucesso."
+            if changed
+            else "O cartão já estava ativo; nenhuma alteração adicional foi necessária."
+        )
+        return HarnessResponse(
+            route="core_banking",
+            session_id=session_id,
+            message=message,
+            card_status=card_status,
         )
 
     def faq_fast_path(self, session_id: str) -> HarnessResponse:

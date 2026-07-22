@@ -22,7 +22,12 @@ from app.security.rbac import RBACService
 from app.services.checkpoint_store import CheckpointStore, checkpoint_store
 from app.services.observability import traceable
 from app.services.customer_support import CustomerSupportService
-from app.services.orchestrator import DemoOrchestrator, PendingLimitOperation, PendingPixOperation
+from app.services.orchestrator import (
+    DemoOrchestrator,
+    PendingCardUnlockOperation,
+    PendingLimitOperation,
+    PendingPixOperation,
+)
 from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
 from app.services.social_conversation import social_conversation_service
@@ -139,6 +144,8 @@ class DemoHarness:
                 },
             }
             return response
+        if self._is_card_unlock_request(payload.message):
+            return self._handle_card_unlock(payload, auth)
         conversation_context = self._workflow_graph.observe_conversation(
             payload.session_id,
             payload.message,
@@ -316,6 +323,17 @@ class DemoHarness:
             self._checkpoints.consume_pending_pix(payload.session_id)
             return response
 
+        pending_unlock = self._checkpoints.get_pending_card_unlock(payload.session_id)
+        if pending_unlock is not None:
+            self._validate_admin_write(auth, pending_unlock.customer_id)
+            response = self._orchestrator.card_unlock_execute(payload.session_id, pending_unlock)
+            self._checkpoints.consume_pending_card_unlock(payload.session_id)
+            response.observability = {
+                **response.observability,
+                "hitl": {"status": "completed", "events": [{"type": "resumed"}, {"type": "completed"}]},
+            }
+            return response
+
         pending_limit = self._checkpoints.get_pending_limit(payload.session_id)
         if pending_limit is None:
             raise ValueError("Nao existe operacao pendente para confirmacao nesta sessao.")
@@ -361,7 +379,53 @@ class DemoHarness:
             )
             return self._response_builder.operation_cancelled(payload.session_id, "update_card_limit")
 
+        pending_unlock = self._checkpoints.get_pending_card_unlock(payload.session_id)
+        if pending_unlock is not None:
+            self._validate_admin_write(auth, pending_unlock.customer_id)
+            self._checkpoints.consume_pending_card_unlock(payload.session_id)
+            audit_log_service.append(
+                pending_unlock.customer_id,
+                "CARD_UNLOCK",
+                {"card_status": "UNCHANGED"},
+                status="cancelled",
+                idempotency_key=f"unlock:{payload.session_id}:{pending_unlock.customer_id}:cancelled",
+            )
+            return self._response_builder.operation_cancelled(payload.session_id, "unlock_card")
+
         raise ValueError("Nao existe operacao pendente para cancelar nesta sessao.")
+
+    def _handle_card_unlock(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
+        self._validate_admin_write(auth, payload.customer_id)
+        profile = CustomerSupportService.require_profile(
+            self._orchestrator.get_limit_profile(payload.customer_id)
+        )
+        operation = PendingCardUnlockOperation(customer_id=payload.customer_id)
+        self._checkpoints.save_pending_card_unlock(payload.session_id, operation)
+        audit_log_service.append(
+            payload.customer_id,
+            "CARD_UNLOCK",
+            {"card_status": profile.card_status},
+            status="awaiting_hitl",
+            idempotency_key=f"unlock:{payload.session_id}:{payload.customer_id}:awaiting_hitl",
+        )
+        response = self._response_builder.card_unlock_checkpoint(
+            payload.session_id,
+            profile.card_status,
+        )
+        response.observability = {
+            "planner": {
+                "provider": "not_called",
+                "fallback_used": False,
+                "fallback_reason": "admin_card_unlock_fast_path",
+            },
+            "hitl": {"status": "awaiting_confirmation", "events": [{"type": "created"}]},
+        }
+        return response
+
+    def _validate_admin_write(self, auth: AuthContext, customer_id: str) -> None:
+        if auth.role != "admin":
+            raise PermissionError("Apenas o perfil administrador pode desbloquear cartoes.")
+        self._rbac_service.validate_owner_access(auth, customer_id, "write")
 
     def _handle_limit_increase(self, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         self._rbac_service.validate_owner_access(auth, payload.customer_id, "write")
@@ -535,6 +599,12 @@ class DemoHarness:
         normalized = self._normalize(message)
         increase_terms = {"aumenta", "aumentar", "aumente", "aumento", "elevar", "subir", "alterar"}
         return "limite" in normalized and any(term in normalized for term in increase_terms)
+
+    def _is_card_unlock_request(self, message: str) -> bool:
+        normalized = self._normalize(message)
+        return "cartao" in normalized and any(
+            term in normalized for term in ("desbloquear", "desbloqueie", "desbloqueio", "reativar")
+        )
 
     def _is_contextual_limit_increase(self, payload: ChatRequest, context: dict | None = None) -> bool:
         if context is None:

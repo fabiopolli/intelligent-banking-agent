@@ -784,6 +784,77 @@ def test_emergency_flow_blocks_card() -> None:
     assert audit_response.json()[-1]["event_type"] == "CARD_BLOCKED"
 
 
+def test_admin_unlocks_blocked_card_only_after_hitl(tmp_path) -> None:  # noqa: ANN001
+    from app.schemas.auth import AuthContext
+    from app.services.internal_systems import LocalInternalSystemsGateway
+
+    mock_bank_service.reset()
+    mock_bank_service.block_card("123")
+    store = CheckpointStore(tmp_path / "unlock-checkpoints.json")
+    test_harness = DemoHarness(
+        router=DeterministicPlanner(),
+        checkpoints=store,
+        internal_systems=LocalInternalSystemsGateway(),
+    )
+    admin = AuthContext(
+        principal_id="admin-demo",
+        role="admin",
+        scopes=("customer:any:read", "customer:any:write"),
+    )
+
+    checkpoint = test_harness.handle_message(
+        ChatRequest(
+            session_id="admin-unlock-card",
+            customer_id="123",
+            message="Desbloqueie o cartão do cliente 123",
+        ),
+        auth=admin,
+    )
+    assert checkpoint["requires_confirmation"] is True
+    assert checkpoint["pending_operation"] == "unlock_card"
+    assert mock_bank_service.get_customer_profile("123").card_status == "BLOCKED"
+
+    completed = test_harness.handle_message(
+        ChatRequest(session_id="admin-unlock-card", customer_id="123", message="confirmo"),
+        auth=admin,
+    )
+    assert completed["card_status"] == "ACTIVE"
+    assert completed["observability"]["tools_called"] == ["local-adapter.unlock_card"]
+
+
+def test_customer_and_manager_cannot_request_card_unlock(tmp_path) -> None:  # noqa: ANN001
+    from app.schemas.auth import AuthContext
+    from app.services.internal_systems import LocalInternalSystemsGateway
+
+    test_harness = DemoHarness(
+        router=DeterministicPlanner(),
+        checkpoints=CheckpointStore(tmp_path / "denied-unlock.json"),
+        internal_systems=LocalInternalSystemsGateway(),
+    )
+    identities = [
+        AuthContext(principal_id="customer-123", role="customer", customer_id="123", scopes=("customer:self",)),
+        AuthContext(principal_id="manager", role="manager", scopes=("customer:any:read",)),
+    ]
+    for auth in identities:
+        with pytest.raises(PermissionError, match="administrador"):
+            test_harness.handle_message(
+                ChatRequest(session_id=f"denied-{auth.role}", customer_id="123", message="Desbloqueie meu cartão"),
+                auth=auth,
+            )
+
+
+def test_card_unlock_is_idempotent() -> None:
+    mock_bank_service.reset()
+
+    first = mock_bank_service.unlock_card("123")
+    second = mock_bank_service.unlock_card("123")
+
+    assert first == {"customer_id": "123", "card_status": "ACTIVE", "changed": False}
+    assert second == first
+    history = mock_bank_service.get_service_history("123")
+    assert history[-1] == {"action": "CARD_UNLOCK", "changed": False}
+
+
 def test_low_value_pix_executes_without_confirmation() -> None:
     response = client.post(
         "/v1/channels/app/chat",

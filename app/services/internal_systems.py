@@ -9,6 +9,7 @@ from app.config import settings
 from app.schemas.outbound import (
     BalanceResponse,
     CardLimitUpdateRequest,
+    CardUnlockRequest,
     CustomerProfileResponse,
     PixCreateRequest,
 )
@@ -30,6 +31,8 @@ class InternalSystemsGateway(Protocol):
     def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict: ...
 
     def create_pix(self, payload: PixCreateRequest) -> dict: ...
+
+    def unlock_card(self, payload: CardUnlockRequest) -> dict: ...
 
 
 class InternalSystemsUnavailable(RuntimeError):
@@ -76,6 +79,12 @@ class LocalInternalSystemsGateway:
         started_at = time.perf_counter()
         result = mock_bank_service.create_pix(payload)
         self.last_trace = self._trace("create_pix", started_at)
+        return result
+
+    def unlock_card(self, payload: CardUnlockRequest) -> dict:
+        started_at = time.perf_counter()
+        result = mock_bank_service.unlock_card(payload.customer_id)
+        self.last_trace = self._trace("unlock_card", started_at)
         return result
 
     @staticmethod
@@ -138,6 +147,15 @@ class McpInternalSystemsGateway:
                 "target_customer_id": payload.customer_id,
                 "amount": payload.amount,
                 "destination_key": payload.destination_key,
+            },
+        )
+
+    def unlock_card(self, payload: CardUnlockRequest) -> dict:
+        return self._call_tool(
+            "unlock_card",
+            {
+                "auth_token": current_trusted_auth_token(),
+                "target_customer_id": payload.customer_id,
             },
         )
 
