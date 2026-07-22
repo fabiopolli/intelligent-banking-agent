@@ -22,6 +22,8 @@ from frontend.ui_common import (
 def init_state() -> None:
     st.session_state.setdefault("chat_history", [])
     st.session_state.setdefault("message_input", "")
+    st.session_state.setdefault("pending_prompt", None)
+    st.session_state.setdefault("clear_message_input", False)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_latency_ms", None)
     st.session_state.setdefault("last_render_latency_ms", None)
@@ -108,7 +110,17 @@ def render_prompt_buttons() -> None:
 
 
 def select_prompt(prompt: str) -> None:
-    st.session_state["message_input"] = prompt
+    st.session_state["pending_prompt"] = prompt
+    st.session_state["clear_message_input"] = False
+
+
+def prepare_message_input() -> None:
+    pending_prompt = st.session_state.pop("pending_prompt", None)
+    if pending_prompt is not None:
+        st.session_state["message_input"] = pending_prompt
+        return
+    if st.session_state.pop("clear_message_input", False):
+        st.session_state["message_input"] = ""
 
 
 def submit_message(
@@ -146,6 +158,7 @@ def render_chat(
     auth_token: str,
     llm_provider: str,
 ) -> None:
+    prepare_message_input()
     render_prompt_buttons()
 
     for item in st.session_state["chat_history"]:
@@ -153,7 +166,7 @@ def render_chat(
             # Streamlit treats an unescaped dollar sign as a Markdown math delimiter.
             st.write(str(item["content"]).replace("$", r"\$"))
 
-    with st.form("customer_chat_form", clear_on_submit=True):
+    with st.form("customer_chat_form"):
         message = st.text_area("Mensagem", key="message_input", height=120)
         submitted = st.form_submit_button("Enviar", type="primary", use_container_width=True)
 
@@ -161,6 +174,7 @@ def render_chat(
         return
 
     try:
+        st.session_state["clear_message_input"] = True
         submit_message(api_url, session_id, customer_id, auth_token, message, llm_provider)
         st.rerun()
     except Exception as exc:  # noqa: BLE001

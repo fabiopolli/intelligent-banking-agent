@@ -13,10 +13,13 @@ confirmação humana e auditoria imutável.
 - rotas nativas para comandos bancários explícitos, social, confirmações e continuações estruturadas, com planner LLM para intenções ambíguas;
 - respostas de tarifas, investimentos, consignado e políticas baseadas somente na KB ingerida;
 - consultas de saldo, perfil e limite por um gateway MCP real;
-- Pix e alteração de limite executados por MCP somente depois de RBAC, políticas e HITL;
+- Pix, alteração de limite e desbloqueio administrativo executados por MCP somente depois de RBAC,
+  políticas e HITL;
 - guardrails e redaction antes de qualquer chamada de modelo;
 - auditoria crítica append-only no PostgreSQL, com hash encadeado e idempotência;
 - dashboard técnico com jornada dinâmica, RAG, LLM, MCP, HITL, latências e auditoria.
+- dashboard com tokens numéricos, status da interação, diagnóstico sanitizado de falhas, atualização
+  automática a cada 30 segundos e botão manual.
 
 ## Arquitetura
 
@@ -59,6 +62,14 @@ execução de ferramentas e auditoria permanecem em código nativo.
 4. O cliente escolhe **Autorizar** ou **Não autorizar** no chat.
 5. Somente após autorização o MCP executa `create_pix` ou `update_card_limit`.
 6. O ciclo completo fica registrado na auditoria e no dashboard.
+
+### Desbloqueio administrativo de cartão
+
+1. O perfil administrador solicita o desbloqueio do cliente alvo em linguagem natural.
+2. O Harness exige papel `admin` e escopo `customer:any:write`; cliente e gerente são negados.
+3. A operação fica pausada no HITL e não chama ferramenta antes da confirmação.
+4. Após **Autorizar**, `unlock_card` é executada pelo MCP e o cartão retorna para `ACTIVE`.
+5. A operação é idempotente e registra `CARD_UNLOCK`; não existe endpoint público de reset geral.
 
 ## Componentes
 

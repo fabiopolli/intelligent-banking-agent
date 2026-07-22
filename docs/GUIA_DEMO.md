@@ -63,6 +63,25 @@ Fui roubado e preciso bloquear meu cartão.
 
 Mostre a rota prioritária, mudança de estado e auditoria `CARD_BLOCKED`.
 
+### 8. Desbloqueio administrativo
+
+Depois do bloqueio, entre como **Administrador — leitura e operações**, mantenha o cliente `123` e
+envie:
+
+```text
+Desbloqueie o cartão do cliente 123
+```
+
+Mostre que o estado permanece bloqueado antes do HITL. Clique **Autorizar** e acompanhe
+`RBAC admin → HITL → MCP unlock_card → CARD_UNLOCK`. Cliente e gerente não podem executar esse fluxo.
+
+### 9. Tokens e falhas no dashboard
+
+O painel apresenta status, latência, provider e tokens de entrada/saída/total da última interação.
+Quando houver erro, abra **Diagnóstico da falha** para mostrar etapa, código, causa provável e ação
+sugerida. O painel não exibe stack trace, segredo ou chain-of-thought. A atualização automática ocorre
+a cada 30 segundos; use **Atualizar agora** durante a apresentação.
+
 ## Pitch em cinco frases
 
 1. “A LLM entende e sintetiza, mas não controla segurança ou dinheiro.”
@@ -86,7 +105,7 @@ docker compose ps
 
 ## Demonstrar o fallback Gemma
 
-O Gemma é usado na síntese documental, não em saldo, Pix, limite, saudações ou guardrails. Para uma
+O Gemma é usado no planner ambíguo e na síntese documental, não em saldo, Pix, limite, saudações ou guardrails explícitos. Para uma
 demonstração previsível sem alterar código ou `.env`, escolha **Gemma4 local — demonstração** na
 lateral do chat. Faça uma pergunta como `Quais são as políticas de governança do Itaú?` e mostre no
 dashboard o provider `docker-model-runner` e o modelo `gemma4:latest`. Volte para **Padrão — OpenAI

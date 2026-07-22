@@ -23,7 +23,56 @@ from frontend.customer_chat import format_brl
 
 
 MAX_VISIBLE_AUDIT_EVENTS = 3
-AUTO_REFRESH_SECONDS = 2
+AUTO_REFRESH_SECONDS = 30
+
+
+def summarize_token_usage(trace: dict) -> dict[str, int | bool]:
+    observability = trace.get("observability") or {}
+    input_tokens = 0
+    output_tokens = 0
+    available = False
+    for component in (observability.get("planner") or {}, observability.get("llm") or {}):
+        usage = component.get("token_usage") or {}
+        if not usage:
+            continue
+        available = True
+        input_tokens += int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+        output_tokens += int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": input_tokens + output_tokens,
+        "available": available,
+    }
+
+
+def interaction_status(trace: dict) -> tuple[str, str]:
+    observability = trace.get("observability") or {}
+    failure = observability.get("failure") or {}
+    if failure:
+        return "Falhou", "error"
+    planner = observability.get("planner") or {}
+    llm = observability.get("llm") or {}
+    if planner.get("fallback_used") or llm.get("fallback_used"):
+        return "Fallback", "warning"
+    if trace.get("requires_confirmation"):
+        return "Aguardando HITL", "warning"
+    return "Concluída", "success"
+
+
+def build_failure_diagnostic(trace: dict) -> dict[str, str | int] | None:
+    failure = (trace.get("observability") or {}).get("failure") or {}
+    if not failure:
+        return None
+    return {
+        "http_status": int(failure.get("http_status") or 500),
+        "stage": str(failure.get("stage") or "unknown"),
+        "error_code": str(failure.get("error_code") or "unknown_error"),
+        "error_type": str(failure.get("error_type") or "Error"),
+        "summary": str(failure.get("summary") or "Interação não concluída."),
+        "probable_cause": str(failure.get("probable_cause") or "Causa não identificada."),
+        "suggested_action": str(failure.get("suggested_action") or "Consulte os logs da API."),
+    }
 
 
 def latest_audit_events(events: list[dict]) -> list[dict]:
@@ -36,6 +85,17 @@ def build_journey_steps(trace_payload: dict) -> list[dict[str, str]]:
         return [{"title": "Aguardando cliente", "detail": "Envie uma mensagem no chat", "status": "pending"}]
 
     observability = trace.get("observability") or {}
+    failure = observability.get("failure") or {}
+    if failure:
+        return [
+            {"title": "Mensagem", "detail": f"Sessão {trace.get('session_id', '-')}", "status": "success"},
+            {
+                "title": "Falha",
+                "detail": f"{failure.get('stage', 'unknown')} · {failure.get('error_code', 'error')}",
+                "status": "blocked",
+            },
+            {"title": "Resposta", "detail": "Erro seguro devolvido ao cliente", "status": "blocked"},
+        ]
     route = trace.get("route", "unknown")
     guardrails = observability.get("guardrails") or {}
     hitl = trace_payload.get("hitl") or {}
@@ -152,6 +212,10 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
     tools_called = observability.get("tools_called") or []
     llm = observability.get("llm") or {}
     planner = observability.get("planner") or {}
+    failure = observability.get("failure") or {}
+
+    render_interaction_metrics(trace)
+    render_failure_panel(trace)
 
     first, second = st.columns(2)
     first.metric("Rota", route)
@@ -167,7 +231,9 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
         st.caption("Native Harness continuation: this turn did not require LLM intent planning.")
 
     pending = trace.get("pending_operation")
-    if hitl.get("status") == "completed":
+    if failure:
+        st.error("Fluxo interrompido; consulte o diagnóstico acima.")
+    elif hitl.get("status") == "completed":
         st.success("HITL completed after customer confirmation.")
     elif hitl.get("status") == "cancelled":
         st.warning("Operação cancelada pelo cliente no checkpoint HITL.")
@@ -243,6 +309,54 @@ def render_trace_panel(api_url: str, session_id: str) -> None:
         if approved_context:
             st.markdown("**Approved context**")
             st.code(json.dumps(approved_context, indent=2, ensure_ascii=False), language="json")
+
+
+def render_interaction_metrics(trace: dict) -> None:
+    observability = trace.get("observability") or {}
+    timings = observability.get("timings") or {}
+    planner = observability.get("planner") or {}
+    llm = observability.get("llm") or {}
+    tokens = summarize_token_usage(trace)
+    status, status_kind = interaction_status(trace)
+    provider = llm.get("provider") or planner.get("provider") or "Rota nativa"
+    latency_ms = int(timings.get("api_total_ms") or timings.get("harness_total_ms") or 0)
+    token_value = str(tokens["total_tokens"]) if tokens["available"] else "N/A"
+
+    st.markdown("#### Métricas da interação")
+    status_card, latency_card, token_card, provider_card = st.columns(4)
+    status_card.metric("Status", status)
+    latency_card.metric("Latência", f"{latency_ms} ms")
+    token_card.metric("Tokens totais", token_value)
+    provider_card.metric("Provider", provider)
+    input_card, output_card = st.columns(2)
+    input_card.metric(
+        "Tokens de entrada",
+        str(tokens["input_tokens"]) if tokens["available"] else "N/A",
+    )
+    output_card.metric(
+        "Tokens de saída",
+        str(tokens["output_tokens"]) if tokens["available"] else "N/A",
+    )
+    if status_kind == "warning":
+        st.caption("A interação concluiu com fallback ou aguarda confirmação humana.")
+
+
+def render_failure_panel(trace: dict) -> None:
+    diagnostic = build_failure_diagnostic(trace)
+    if diagnostic is None:
+        return
+    st.error(f"Interação falhou na etapa: {diagnostic['stage']}")
+    with st.expander("Diagnóstico da falha", expanded=True):
+        first, second = st.columns(2)
+        first.metric("HTTP", diagnostic["http_status"])
+        second.metric("Código", diagnostic["error_code"])
+        st.markdown(f"**Resumo:** {diagnostic['summary']}")
+        st.markdown(f"**Causa provável:** {diagnostic['probable_cause']}")
+        st.markdown(f"**Próxima ação:** {diagnostic['suggested_action']}")
+        st.caption(
+            f"Tipo técnico sanitizado: {diagnostic['error_type']} · "
+            "detalhes sensíveis e stack trace não são exibidos."
+        )
 
 
 def render_evidence_panel(api_url: str, session_id: str) -> None:
@@ -356,6 +470,9 @@ def main() -> None:
         "Painel tecnico para acompanhar estado, rota, HITL, RAG, payloads e auditoria em outra tela.",
     )
     api_url, session_id, customer_id = render_sidebar()
+
+    if st.button("Atualizar agora", type="primary"):
+        st.rerun()
 
     render_live_dashboard(api_url, session_id, customer_id)
 
