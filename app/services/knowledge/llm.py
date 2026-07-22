@@ -265,7 +265,7 @@ class DockerModelRunnerGroundedFaqSynthesizer(OpenAIGroundedFaqSynthesizer):
             client = OpenAI(
                 api_key="not-needed",
                 base_url=settings.docker_model_runner_base_url,
-                timeout=settings.llm_timeout_seconds,
+                timeout=settings.docker_model_runner_timeout_seconds,
                 max_retries=0,
             )
             response = client.chat.completions.create(

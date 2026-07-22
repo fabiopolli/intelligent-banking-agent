@@ -47,10 +47,15 @@ def knowledge_resources() -> dict:
 
 
 @mcp.tool()
-def search_tariff_knowledge(query: str) -> dict:
+def search_tariff_knowledge(
+    query: str,
+    llm_provider: str = "configured",
+) -> dict:
     """Search official tariff, help-center and policy knowledge with grounding evidence."""
 
-    return knowledge_service.answer_with_trace(query)
+    if llm_provider not in {"configured", "docker_model_runner"}:
+        raise ValueError("Unsupported LLM provider override.")
+    return knowledge_service.answer_with_trace(query, llm_provider=llm_provider)
 
 
 @mcp.tool()

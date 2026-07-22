@@ -214,6 +214,7 @@ def send_chat_message(
     customer_id: str,
     auth_token: str,
     message: str,
+    llm_provider: str = "configured",
 ) -> dict:
     response = httpx.post(
         f"{api_url}/channels/app/chat",
@@ -222,6 +223,7 @@ def send_chat_message(
             "session_id": session_id,
             "customer_id": customer_id,
             "message": message,
+            "llm_provider": llm_provider,
         },
         timeout=httpx.Timeout(CHAT_REQUEST_TIMEOUT_SECONDS, connect=3.0),
     )

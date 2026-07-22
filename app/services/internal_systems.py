@@ -25,7 +25,7 @@ class InternalSystemsGateway(Protocol):
 
     def get_account_balance(self, customer_id: str) -> BalanceResponse | None: ...
 
-    def search_official_knowledge(self, query: str) -> dict: ...
+    def search_official_knowledge(self, query: str, llm_provider: str = "configured") -> dict: ...
 
     def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict: ...
 
@@ -58,11 +58,11 @@ class LocalInternalSystemsGateway:
         self.last_trace = self._trace("get_card_limit", started_at)
         return result
 
-    def search_official_knowledge(self, query: str) -> dict:
+    def search_official_knowledge(self, query: str, llm_provider: str = "configured") -> dict:
         from app.services.knowledge.service import knowledge_service
 
         started_at = time.perf_counter()
-        result = knowledge_service.answer_with_trace(query)
+        result = knowledge_service.answer_with_trace(query, llm_provider=llm_provider)
         self.last_trace = self._trace("search_tariff_knowledge", started_at)
         return result
 
@@ -114,8 +114,11 @@ class McpInternalSystemsGateway:
         )
         return CustomerProfileResponse.model_validate(payload)
 
-    def search_official_knowledge(self, query: str) -> dict:
-        return self._call_tool("search_tariff_knowledge", {"query": query})
+    def search_official_knowledge(self, query: str, llm_provider: str = "configured") -> dict:
+        return self._call_tool(
+            "search_tariff_knowledge",
+            {"query": query, "llm_provider": llm_provider},
+        )
 
     def update_card_limit(self, payload: CardLimitUpdateRequest) -> dict:
         return self._call_tool(

@@ -28,6 +28,7 @@ def init_state() -> None:
     st.session_state.setdefault("render_started_at", None)
     st.session_state.setdefault("demo_identity", None)
     st.session_state.setdefault("demo_profile", "customer")
+    st.session_state.setdefault("llm_provider", "configured")
 
 
 DEMO_PROFILES = {
@@ -42,7 +43,7 @@ def format_brl(value: float) -> str:
     return f"R$ {rendered}"
 
 
-def render_sidebar() -> tuple[str, str, str, str] | None:
+def render_sidebar() -> tuple[str, str, str, str, str] | None:
     st.sidebar.header("Atendimento")
     api_url = st.sidebar.text_input("API URL", value=DEFAULT_API_URL)
     identity = st.session_state.get("demo_identity")
@@ -77,7 +78,18 @@ def render_sidebar() -> tuple[str, str, str, str] | None:
         )
     else:
         customer_id = st.sidebar.text_input("Cliente alvo", value=DEFAULT_CUSTOMER_ID)
-    return api_url, session_id, customer_id, DEMO_PROFILES[profile_key][1]
+    llm_provider = st.sidebar.selectbox(
+        "Síntese documental",
+        options=["configured", "docker_model_runner"],
+        format_func=lambda value: (
+            "Padrão — OpenAI com fallback"
+            if value == "configured"
+            else "Gemma4 local — demonstração"
+        ),
+        key="llm_provider",
+    )
+    st.sidebar.caption("A seleção afeta somente respostas RAG que usam síntese por LLM.")
+    return api_url, session_id, customer_id, DEMO_PROFILES[profile_key][1], llm_provider
 
 
 def render_prompt_buttons() -> None:
@@ -94,17 +106,31 @@ def submit_message(
     customer_id: str,
     auth_token: str,
     message: str,
+    llm_provider: str = "configured",
 ) -> None:
     st.session_state["chat_history"].append({"role": "user", "content": message})
     start = time.perf_counter()
-    result = send_chat_message(api_url, session_id, customer_id, auth_token, message)
+    result = send_chat_message(
+        api_url,
+        session_id,
+        customer_id,
+        auth_token,
+        message,
+        llm_provider=llm_provider,
+    )
     st.session_state["last_latency_ms"] = round((time.perf_counter() - start) * 1000)
     st.session_state["last_result"] = result
     st.session_state["chat_history"].append({"role": "assistant", "content": result.get("message", "")})
     st.session_state["render_started_at"] = time.perf_counter()
 
 
-def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str) -> None:
+def render_chat(
+    api_url: str,
+    session_id: str,
+    customer_id: str,
+    auth_token: str,
+    llm_provider: str,
+) -> None:
     render_prompt_buttons()
 
     for item in st.session_state["chat_history"]:
@@ -120,13 +146,19 @@ def render_chat(api_url: str, session_id: str, customer_id: str, auth_token: str
         return
 
     try:
-        submit_message(api_url, session_id, customer_id, auth_token, message)
+        submit_message(api_url, session_id, customer_id, auth_token, message, llm_provider)
         st.rerun()
     except Exception as exc:  # noqa: BLE001
         st.error(f"Nao foi possivel processar a mensagem: {exc}")
 
 
-def render_customer_action(api_url: str, session_id: str, customer_id: str, auth_token: str) -> None:
+def render_customer_action(
+    api_url: str,
+    session_id: str,
+    customer_id: str,
+    auth_token: str,
+    llm_provider: str,
+) -> None:
     render_started_at = st.session_state.get("render_started_at")
     if render_started_at is not None:
         st.session_state["last_render_latency_ms"] = round((time.perf_counter() - render_started_at) * 1000)
@@ -168,10 +200,10 @@ def render_customer_action(api_url: str, session_id: str, customer_id: str, auth
         )
         approve, reject = st.columns(2)
         if approve.button("Autorizar", type="primary", use_container_width=True):
-            submit_message(api_url, session_id, customer_id, auth_token, "confirmo")
+            submit_message(api_url, session_id, customer_id, auth_token, "confirmo", llm_provider)
             st.rerun()
         if reject.button("Não autorizar", use_container_width=True):
-            submit_message(api_url, session_id, customer_id, auth_token, "não autorizo")
+            submit_message(api_url, session_id, customer_id, auth_token, "não autorizo", llm_provider)
             st.rerun()
 
     latency = st.session_state.get("last_latency_ms")
@@ -203,9 +235,9 @@ def main() -> None:
     if sidebar_state is None:
         st.info("Escolha um perfil controlado na lateral para iniciar a demonstração.")
         return
-    api_url, session_id, customer_id, auth_token = sidebar_state
-    render_chat(api_url, session_id, customer_id, auth_token)
-    render_customer_action(api_url, session_id, customer_id, auth_token)
+    api_url, session_id, customer_id, auth_token, llm_provider = sidebar_state
+    render_chat(api_url, session_id, customer_id, auth_token, llm_provider)
+    render_customer_action(api_url, session_id, customer_id, auth_token, llm_provider)
 
 
 if __name__ == "__main__":

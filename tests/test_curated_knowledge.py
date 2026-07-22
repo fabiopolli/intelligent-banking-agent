@@ -121,6 +121,51 @@ def test_customer_chat_formats_hitl_currency_in_pt_br() -> None:
     assert format_brl(6000.5) == "R$ 6.000,50"
 
 
+def test_request_override_selects_docker_model_runner_only_for_documental_synthesis(
+    monkeypatch,
+) -> None:
+    class RecordingDockerSynthesizer:
+        provider_name = "docker-model-runner"
+
+        def __init__(self, fallback=None) -> None:  # noqa: ANN001
+            self.last_trace = {}
+
+        def synthesize(self, query, contexts):  # noqa: ANN001, ANN201
+            self.last_trace = {
+                "provider": self.provider_name,
+                "model": "gemma4:latest",
+                "fallback_used": False,
+                "duration_ms": 1,
+            }
+            return "Resposta Gemma grounded."
+
+    monkeypatch.setattr(
+        "app.services.knowledge.service.DockerModelRunnerGroundedFaqSynthesizer",
+        RecordingDockerSynthesizer,
+    )
+    retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
+    service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
+
+    result = service.answer_with_trace(
+        "Como falo com o Itau pelo WhatsApp?",
+        llm_provider="docker_model_runner",
+    )
+
+    assert result["message"].startswith("Resposta Gemma grounded.")
+    assert result["observability"]["llm"]["provider"] == "docker-model-runner"
+    assert result["observability"]["llm"]["model"] == "gemma4:latest"
+
+
+def test_request_override_rejects_unknown_provider() -> None:
+    service = GroundedKnowledgeService(
+        retriever=LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents()),
+        synthesizer=None,
+    )
+
+    with pytest.raises(ValueError, match="Unsupported LLM provider override"):
+        service.answer_with_trace("Como falo com o Itau?", llm_provider="external-url")
+
+
 def test_essential_services_package_uses_structured_official_composition() -> None:
     retriever = LocalHybridRetriever(documents=CuratedCatalogLoader().load_documents())
     service = GroundedKnowledgeService(retriever=retriever, synthesizer=None)
@@ -367,7 +412,7 @@ def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> Non
 
     message = synthesizer.synthesize("Tem tarifa para saque?", context)
 
-    assert captured["timeout"] == settings.llm_timeout_seconds
+    assert captured["timeout"] == settings.docker_model_runner_timeout_seconds
     assert captured["max_retries"] == 0
     assert "tarifa de saque" in message.lower()
     assert synthesizer.last_trace["fallback_used"] is True

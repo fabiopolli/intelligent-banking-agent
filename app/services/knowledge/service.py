@@ -11,7 +11,12 @@ from app.services.knowledge.config import (
     TARIFF_PDF_SOURCE,
     TARIFF_QUERY_TERMS,
 )
-from app.services.knowledge.llm import GroundedFaqSynthesizer, build_grounded_faq_synthesizer
+from app.services.knowledge.llm import (
+    DockerModelRunnerGroundedFaqSynthesizer,
+    GroundedFaqSynthesizer,
+    LocalGroundedFaqSynthesizer,
+    build_grounded_faq_synthesizer,
+)
 from app.services.knowledge.reranker import LocalReranker
 from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.schemas import RetrievedKnowledge
@@ -33,9 +38,10 @@ class GroundedKnowledgeService:
         result = self.answer_with_trace(query)
         return result["message"], result["sources"]
 
-    def answer_with_trace(self, query: str) -> dict:
+    def answer_with_trace(self, query: str, llm_provider: str = "configured") -> dict:
         started_at = time.perf_counter()
         retrieval_ms = 0
+        synthesizer = self._resolve_synthesizer(llm_provider)
 
         def finish(payload: dict) -> dict:
             total_ms = round((time.perf_counter() - started_at) * 1000)
@@ -110,10 +116,10 @@ class GroundedKnowledgeService:
             tools_called.append("controlled_tariff_answer_builder")
             message = self._tariff_answers.build(query, primary)
             llm_trace = None
-        elif self._synthesizer is not None:
+        elif synthesizer is not None:
             tools_called.append("grounded_faq_synthesizer")
-            message = self._synthesizer.synthesize(query, retrieved)
-            llm_trace = getattr(self._synthesizer, "last_trace", {}) or {}
+            message = synthesizer.synthesize(query, retrieved)
+            llm_trace = getattr(synthesizer, "last_trace", {}) or {}
             if self._is_tariff_query(query) and llm_trace.get("fallback_used"):
                 tools_called.append("controlled_tariff_answer_builder")
                 message = self._tariff_answers.build(query, primary)
@@ -136,6 +142,15 @@ class GroundedKnowledgeService:
 
         sources = list(dict.fromkeys(item.source for item in retrieved))
         return finish(self._answer_payload(message, sources, tools_called, retrieved, llm_trace))
+
+    def _resolve_synthesizer(self, llm_provider: str) -> GroundedFaqSynthesizer | None:
+        if llm_provider == "configured":
+            return self._synthesizer
+        if llm_provider == "docker_model_runner":
+            return DockerModelRunnerGroundedFaqSynthesizer(
+                fallback=LocalGroundedFaqSynthesizer("docker-fallback-local")
+            )
+        raise ValueError("Unsupported LLM provider override.")
 
     def status(self) -> dict:
         curated_documents = [

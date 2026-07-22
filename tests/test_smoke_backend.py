@@ -134,8 +134,12 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
                 credit_score=820,
             )
 
-        def search_official_knowledge(self, query: str) -> dict:
-            self.calls.append(("search_tariff_knowledge", query))
+        def search_official_knowledge(
+            self,
+            query: str,
+            llm_provider: str = "configured",
+        ) -> dict:
+            self.calls.append(("search_tariff_knowledge", query, llm_provider))
             self.last_trace = {
                 "tool": "search_tariff_knowledge",
                 "transport": "mcp-streamable-http",
@@ -218,7 +222,11 @@ def test_core_banking_read_uses_injected_internal_systems_gateway(monkeypatch) -
     ).handle_message(
         ChatRequest(session_id="mcp-gateway-faq", customer_id="123", message="Qual a tarifa de saque?")
     )
-    assert gateway.calls[-1] == ("search_tariff_knowledge", "Qual a tarifa de saque?")
+    assert gateway.calls[-1] == (
+        "search_tariff_knowledge",
+        "Qual a tarifa de saque?",
+        "configured",
+    )
     assert faq_result["grounding_sources"] == ["official-source"]
     assert faq_result["observability"]["tools_called"] == [
         "hybrid_retrieve",

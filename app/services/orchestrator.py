@@ -185,7 +185,10 @@ class FaqNode:
 
     @traceable(name="Grounded Knowledge Node", run_type="retriever")
     def _handle(self, payload: ChatRequest) -> HarnessResponse:
-        answer = self._internal_systems.search_official_knowledge(payload.message)
+        answer = self._internal_systems.search_official_knowledge(
+            payload.message,
+            llm_provider=payload.llm_provider,
+        )
         observability = dict(answer["observability"])
         trace = dict(self._internal_systems.last_trace)
         tools_called = list(observability.get("tools_called") or [])

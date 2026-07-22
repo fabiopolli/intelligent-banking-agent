@@ -59,7 +59,15 @@ def build_journey_steps(trace_payload: dict) -> list[dict[str, str]]:
         source_count = len(trace.get("grounding_sources") or [])
         steps.append({"title": "RAG oficial", "detail": f"{source_count} fonte(s)", "status": "success" if source_count else "warning"})
         provider = llm.get("provider") or "Resposta determinística"
-        steps.append({"title": "Síntese", "detail": provider, "status": "success"})
+        if llm.get("fallback_used"):
+            provider = f"{provider} → {llm.get('fallback_provider') or 'fallback grounded'}"
+        steps.append(
+            {
+                "title": "Síntese",
+                "detail": provider,
+                "status": "warning" if llm.get("fallback_used") else "success",
+            }
+        )
     elif route in {"transaction", "core_banking", "emergency"}:
         steps.append({"title": "RBAC e políticas", "detail": "Autorização nativa", "status": "success"})
         if hitl.get("encountered") or trace.get("requires_confirmation"):
@@ -241,13 +249,13 @@ def render_evidence_panel(api_url: str, session_id: str) -> None:
     st.subheader("Evidências do RAG")
     trace = fetch_trace(api_url, session_id).get("trace")
     if not trace or trace.get("route") != "faq_fast_path":
-        st.info("Evidence appears after a documental question.")
+        st.info("As evidências aparecem após uma pergunta documental.")
         return
 
     sources = trace.get("grounding_sources") or []
     st.metric("Fontes oficiais", len(sources))
     if not sources:
-        st.warning("No official source was returned.")
+        st.warning("Nenhuma fonte oficial foi retornada.")
         return
 
     for source in sources:
@@ -301,14 +309,22 @@ def render_knowledge_panel(api_url: str) -> None:
         return
 
     first, second = st.columns(2)
-    first.metric("Documents", status["document_count"])
-    second.metric("PDF", "Ingested" if status["pdf_ingested"] else "Fallback")
+    first.metric("Registros recuperáveis", status["document_count"])
+    second.metric("Fontes oficiais", len(status.get("sources") or []))
     third, fourth = st.columns(2)
-    third.metric("Official web sources", "Loaded" if status["web_sources_loaded"] else "Missing")
-    fourth.metric("FAQ synthesizer", status.get("grounded_faq_synthesizer", "disabled"))
-    st.caption(f"Reranker: {status.get('reranker', '-')}")
+    third.metric("PDF de tarifas", "Ingerido" if status["pdf_ingested"] else "Indisponível")
+    fourth.metric("Síntese documental padrão", status.get("grounded_faq_synthesizer", "desativada"))
+    st.caption(
+        "Os registros recuperáveis são unidades indexadas da KB, não arquivos distintos. "
+        f"Reranker: {status.get('reranker', '-')}"
+    )
+    st.caption(
+        "Snapshots oficiais: carregados"
+        if status["web_sources_loaded"]
+        else "Snapshots oficiais: incompletos"
+    )
 
-    with st.expander("Sources", expanded=False):
+    with st.expander("Fontes oficiais", expanded=False):
         for source in status["sources"]:
             st.markdown(f"<div class='source-pill'>{source}</div>", unsafe_allow_html=True)
 

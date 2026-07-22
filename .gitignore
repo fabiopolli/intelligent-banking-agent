@@ -11,3 +11,4 @@ intelligent_banking_agent.egg-info/
 .docs/*
 !.docs/tabela_geral_de_tarifas_pf_pdf.pdf
 .runtime/
+tmp/

@@ -514,6 +514,7 @@ class DemoHarness:
             customer_id=payload.customer_id,
             message=f"{last_query} {payload.message}",
             role=payload.role,
+            llm_provider=payload.llm_provider,
         )
 
     def _is_documental_context_followup(self, message: str) -> bool:

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     docker_model_runner_base_url: str = "http://localhost:12434/engines/v1"
     docker_model_runner_model: str = "gemma4:latest"
+    docker_model_runner_timeout_seconds: float = Field(default=60.0, gt=0)
     mcp_server_host: str = "0.0.0.0"
     mcp_server_port: int = Field(default=8600, ge=1, le=65535)
     mcp_client_url: str = "http://localhost:8600/mcp"
