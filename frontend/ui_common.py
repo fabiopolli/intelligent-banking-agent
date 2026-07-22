@@ -11,6 +11,7 @@ DEFAULT_SESSION_ID = "demo-session-001"
 DEFAULT_CUSTOMER_ID = "123"
 DEFAULT_INTERNAL_TOOL_KEY = os.getenv("INTERNAL_TOOL_API_KEY", "demo-internal-tool-key")
 DEFAULT_DEMO_AUTH_TOKEN = os.getenv("DEMO_AUTH_TOKEN", "demo-customer-123-token")
+CHAT_REQUEST_TIMEOUT_SECONDS = float(os.getenv("CHAT_REQUEST_TIMEOUT_SECONDS", "90"))
 DEMO_CUSTOMER_TOKEN = os.getenv("DEMO_CUSTOMER_TOKEN", DEFAULT_DEMO_AUTH_TOKEN)
 DEMO_MANAGER_TOKEN = os.getenv("DEMO_MANAGER_TOKEN", "demo-manager-token")
 DEMO_ADMIN_TOKEN = os.getenv("DEMO_ADMIN_TOKEN", "demo-admin-token")
@@ -315,4 +316,3 @@ def fetch_mcp_resources(api_url: str) -> dict:
 
 def _internal_tool_headers() -> dict[str, str]:
     return {"X-Internal-Tool-Key": DEFAULT_INTERNAL_TOOL_KEY}
-CHAT_REQUEST_TIMEOUT_SECONDS = 30.0

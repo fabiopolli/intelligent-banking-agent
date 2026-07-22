@@ -79,7 +79,7 @@ def render_sidebar() -> tuple[str, str, str, str, str] | None:
     else:
         customer_id = st.sidebar.text_input("Cliente alvo", value=DEFAULT_CUSTOMER_ID)
     llm_provider = st.sidebar.selectbox(
-        "Síntese documental",
+        "Modelo de IA",
         options=["configured", "docker_model_runner"],
         format_func=lambda value: (
             "Padrão — OpenAI com fallback"
@@ -88,7 +88,10 @@ def render_sidebar() -> tuple[str, str, str, str, str] | None:
         ),
         key="llm_provider",
     )
-    st.sidebar.caption("A seleção afeta somente respostas RAG que usam síntese por LLM.")
+    st.sidebar.caption(
+        "A seleção vale para o roteamento de intenções e para a síntese RAG. "
+        "Guardrails, RBAC, HITL e operações permanecem nativos."
+    )
     return api_url, session_id, customer_id, DEMO_PROFILES[profile_key][1], llm_provider
 
 
@@ -96,8 +99,16 @@ def render_prompt_buttons() -> None:
     st.caption("Escolha um caso de uso")
     columns = st.columns(len(PROMPTS))
     for column, (label, prompt) in zip(columns, PROMPTS.items()):
-        if column.button(label, use_container_width=True):
-            st.session_state["message_input"] = prompt
+        column.button(
+            label,
+            use_container_width=True,
+            on_click=select_prompt,
+            args=(prompt,),
+        )
+
+
+def select_prompt(prompt: str) -> None:
+    st.session_state["message_input"] = prompt
 
 
 def submit_message(
@@ -108,6 +119,10 @@ def submit_message(
     message: str,
     llm_provider: str = "configured",
 ) -> None:
+    message = message.strip()
+    if not message:
+        st.warning("Digite uma mensagem antes de enviar.")
+        return
     st.session_state["chat_history"].append({"role": "user", "content": message})
     start = time.perf_counter()
     result = send_chat_message(
