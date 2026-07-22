@@ -10,7 +10,7 @@ confirmação humana e auditoria imutável.
 ## O que a solução demonstra
 
 - conversa em português com memória estruturada por sessão;
-- roteamento determinístico para interações óbvias e planner LLM para solicitações ambíguas;
+- rotas nativas para social, confirmações e continuações estruturadas, com planner LLM e fallback determinístico para as demais intenções;
 - respostas de tarifas, investimentos, consignado e políticas baseadas somente na KB ingerida;
 - consultas de saldo, perfil e limite por um gateway MCP real;
 - Pix e alteração de limite executados por MCP somente depois de RBAC, políticas e HITL;
@@ -25,7 +25,7 @@ flowchart LR
     U["Cliente — Streamlit"] --> A["FastAPI / Auth"]
     A --> G["Guardrails + redaction"]
     G --> C["Memória LangGraph"]
-    C --> R["Roteador determinístico / Planner OpenAI"]
+    C --> R["Rotas nativas / Planner OpenAI"]
     R --> H["Agent Harness"]
     H --> P["RBAC + políticas + HITL"]
     P --> M["MCP Streamable HTTP"]
@@ -74,6 +74,23 @@ execução de ferramentas e auditoria permanecem em código nativo.
 | `frontend/customer_chat.py` | Chat do cliente e decisões HITL |
 | `frontend/ops_dashboard.py` | Jornada, traces, fontes, métricas e auditoria |
 | `knowledge` | Catálogo versionado usado na ingestão idempotente |
+
+### Estrutura do projeto
+
+```text
+app/
+├── api/          APIs de entrada e adapters internos protegidos
+├── graph/        LangGraph e memória conversacional
+├── mcp/          servidor MCP Streamable HTTP
+├── security/     identidade, RBAC, guardrails e credenciais internas
+└── services/     Harness, RAG, ferramentas, auditoria e providers
+frontend/         chat do cliente e dashboard operacional
+knowledge/        catálogo estruturado para ingestão idempotente
+prompts/          prompts externos, versionados por perfil
+scripts/          ingestão e smokes operacionais
+tests/            validação determinística do backend e dashboard
+docs/             arquitetura e roteiro público de demonstração
+```
 
 ## Execução com Docker
 
@@ -175,6 +192,38 @@ O roteamento é configurado por `.env`, sem alterações no código:
 Os prompts ficam fora do código em `prompts/<perfil>/`. O trace registra perfil, versão e hash do
 prompt, permitindo atualização e auditoria sem acoplar instruções aos nós.
 
+### Teste explícito do Gemma
+
+No modo normal, o Gemma é fallback da **síntese documental** e só é chamado quando a OpenAI falha.
+Para demonstrá-lo de forma previsível sem mudar código, altere temporariamente a `.env`:
+
+```dotenv
+LLM_GROUNDED_FAQ_ENABLED=true
+LLM_PROVIDER=docker_model_runner
+LLM_FALLBACK_PROVIDER=local
+DOCKER_MODEL_RUNNER_MODEL=gemma4:latest
+COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL=http://host.docker.internal:12434/engines/v1
+```
+
+Recrie `api` e `mcp-server`, faça uma pergunta documental e confira no dashboard
+`provider=docker-model-runner` e `model=gemma4:latest`. Saldo, Pix, limite e saudações não acionam o
+sintetizador documental. O passo a passo completo está no
+[blueprint AWS](docs/ARQUITETURA_AWS.md#teste-local-do-gemma-sem-alterar-código).
+
+## Decisões arquiteturais e trade-offs
+
+| Decisão | Benefício | Custo ou limitação |
+|---|---|---|
+| Harness nativo como autoridade | LLM não controla identidade, dinheiro ou políticas | Mais contratos e código de orquestração |
+| PostgreSQL + pgvector | Une catálogo, vetores e auditoria na entrega local | Escala de busca menor que um cluster especializado |
+| MCP como gateway interno | Ferramentas padronizadas e desacopladas do planner | Um salto adicional de rede e observabilidade |
+| OpenAI com Gemma e builder determinístico | Qualidade com degradação controlada | Fallback local exige memória e pode ter maior latência |
+| Memória estruturada | Resolve referências sem guardar conversa bruta | `InMemorySaver` local não sobrevive ao restart |
+| Catálogo de tarifas estruturado | Valores financeiros exatos e auditáveis | Ingestão exige reconciliação e publicação controlada |
+
+Detalhes e alternativas estão em [Arquitetura e decisões técnicas](docs/ARQUITETURA.md). A evolução
+gerenciada está em [Blueprint de produção na AWS](docs/ARQUITETURA_AWS.md).
+
 ## Segurança e governança
 
 - token confiável define identidade, papel e scopes;
@@ -222,7 +271,9 @@ O dashboard atualiza automaticamente e mostra:
 
 LangSmith é opcional e controlado por `LANGSMITH_TRACING` e `LANGSMITH_API_KEY`.
 
-## Limitações conhecidas
+## Limitações e próximos passos
+
+### Limitações conhecidas
 
 - memória conversacional LangGraph usa `InMemorySaver` e reinicia com o processo;
 - operações e identidade são mocks locais;
@@ -230,9 +281,19 @@ LangSmith é opcional e controlado por `LANGSMITH_TRACING` e `LANGSMITH_API_KEY`
 - traces técnicos em memória não sobrevivem ao restart da API;
 - a auditoria local em PostgreSQL não substitui WORM/SIEM de produção.
 
+### Próximos passos de produção
+
+1. Substituir o login de demonstração por Cognito/OIDC com PKCE e JWT validado no servidor.
+2. Persistir memória LangGraph e traces em PostgreSQL compartilhado.
+3. Implantar API/Harness e MCP em rede privada, com Secrets Manager e KMS.
+4. Adotar Bedrock como provider gerenciado e manter Gemma privado como fallback controlado.
+5. Exportar auditoria para armazenamento WORM/SIEM e configurar alertas operacionais.
+6. Executar testes de carga, segurança, recuperação e qualidade do RAG antes de produção.
+
 ## Documentação complementar
 
 - [Arquitetura e decisões técnicas](docs/ARQUITETURA.md)
+- [Blueprint de produção na AWS](docs/ARQUITETURA_AWS.md)
 - [Guia público de demonstração](docs/GUIA_DEMO.md)
 
 O roteiro pessoal detalhado permanece local em `.temp/06_project_pitch.md` e não é versionado.
