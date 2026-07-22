@@ -87,16 +87,8 @@ docker compose ps
 ## Demonstrar o fallback Gemma
 
 O Gemma é usado na síntese documental, não em saldo, Pix, limite, saudações ou guardrails. Para uma
-demonstração previsível sem alterar código, configure temporariamente na `.env`:
-
-```dotenv
-LLM_GROUNDED_FAQ_ENABLED=true
-LLM_PROVIDER=docker_model_runner
-LLM_FALLBACK_PROVIDER=local
-DOCKER_MODEL_RUNNER_MODEL=gemma4:latest
-COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL=http://host.docker.internal:12434/engines/v1
-```
-
-Recrie `api` e `mcp-server`, faça uma pergunta sobre tarifas e mostre no dashboard o provider
-`docker-model-runner` e o modelo `gemma4:latest`. Depois restaure `LLM_PROVIDER=openai` e
-`LLM_FALLBACK_PROVIDER=docker_model_runner`.
+demonstração previsível sem alterar código ou `.env`, escolha **Gemma4 local — demonstração** na
+lateral do chat. Faça uma pergunta como `Quais são as políticas de governança do Itaú?` e mostre no
+dashboard o provider `docker-model-runner` e o modelo `gemma4:latest`. Volte para **Padrão — OpenAI
+com fallback** após o teste. Perguntas de tarifas estruturadas podem usar o builder determinístico e,
+por isso, não são a melhor evidência de ativação da LLM.

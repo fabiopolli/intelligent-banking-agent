@@ -102,37 +102,17 @@ tabelas estruturadas, e não de uma geração livre do modelo.
 
 ## Teste local do Gemma sem alterar código
 
-Na `.env`, use temporariamente:
+No chat, escolha **Gemma4 local — demonstração** no seletor **Síntese documental**. A opção é enviada
+como um enum por requisição, atravessa o Harness e o MCP e seleciona apenas o sintetizador RAG; ela
+não altera planner, RBAC, HITL ou execução de ferramentas.
 
-```dotenv
-LLM_GROUNDED_FAQ_ENABLED=true
-LLM_PROVIDER=docker_model_runner
-LLM_FALLBACK_PROVIDER=local
-DOCKER_MODEL_RUNNER_MODEL=gemma4:latest
-COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL=http://host.docker.internal:12434/engines/v1
-```
+Faça uma pergunta documental, por exemplo: `Quais são as políticas de governança do Itaú?`. No
+dashboard, a seção de LLM deve mostrar `provider=docker-model-runner` e `model=gemma4:latest`.
+Saldo, Pix, limite, saudações, guardrails e respostas de tarifas estruturadas não provam o uso do
+Gemma porque esses fluxos não dependem do sintetizador documental.
 
-Depois recrie os serviços que carregam essas variáveis:
-
-```powershell
-docker compose up -d --force-recreate api mcp-server
-```
-
-Faça uma pergunta documental, por exemplo: `Como funciona a tarifa para saque em conta corrente?`.
-No dashboard, a seção de LLM deve mostrar `provider=docker-model-runner` e
-`model=gemma4:latest`. Saldo, Pix, limite, saudações e guardrails não provam o uso do Gemma porque
-esses fluxos não usam o sintetizador documental.
-
-Para voltar ao modo principal:
-
-```dotenv
-LLM_PROVIDER=openai
-LLM_FALLBACK_PROVIDER=docker_model_runner
-LLM_MODEL=gpt-5.4
-```
-
-Nesse modo, o Gemma somente será chamado quando a síntese OpenAI falhar. Isso é correto para produção,
-mas é ruim para uma demonstração previsível; por isso o teste explícito troca apenas a configuração.
+Para voltar ao modo principal, selecione **Padrão — OpenAI com fallback**. Nesse modo, o Gemma somente
+será chamado quando a síntese OpenAI falhar, que é o comportamento esperado de resiliência.
 
 ## Referências AWS
 

@@ -195,20 +195,15 @@ prompt, permitindo atualização e auditoria sem acoplar instruções aos nós.
 ### Teste explícito do Gemma
 
 No modo normal, o Gemma é fallback da **síntese documental** e só é chamado quando a OpenAI falha.
-Para demonstrá-lo de forma previsível sem mudar código, altere temporariamente a `.env`:
-
-```dotenv
-LLM_GROUNDED_FAQ_ENABLED=true
-LLM_PROVIDER=docker_model_runner
-LLM_FALLBACK_PROVIDER=local
-DOCKER_MODEL_RUNNER_MODEL=gemma4:latest
-COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL=http://host.docker.internal:12434/engines/v1
-```
-
-Recrie `api` e `mcp-server`, faça uma pergunta documental e confira no dashboard
-`provider=docker-model-runner` e `model=gemma4:latest`. Saldo, Pix, limite e saudações não acionam o
-sintetizador documental. O passo a passo completo está no
+Para demonstrá-lo de forma previsível sem editar `.env` ou reiniciar containers, selecione
+**Gemma4 local — demonstração** na lateral do chat. Faça uma pergunta documental e confira no
+dashboard `provider=docker-model-runner` e `model=gemma4:latest`. Saldo, Pix, limite e saudações não
+acionam o sintetizador documental. O passo a passo completo está no
 [blueprint AWS](docs/ARQUITETURA_AWS.md#teste-local-do-gemma-sem-alterar-código).
+
+A primeira inferência local pode ser mais lenta por causa do carregamento do modelo. O timeout do
+Docker Model Runner é independente (`DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS`, padrão `60`) para não
+alterar o limite mais curto usado pelo provider principal.
 
 ## Decisões arquiteturais e trade-offs
 
