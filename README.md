@@ -24,24 +24,47 @@ confirmação humana e auditoria imutável.
 ## Arquitetura
 
 ```mermaid
-flowchart LR
+flowchart TD
     U["Cliente — Streamlit"] --> A["FastAPI / Auth"]
     A --> G["Guardrails + redaction"]
-    G --> C["Memória LangGraph"]
-    C --> R["Rotas nativas / Planner OpenAI → Gemma4 → determinístico"]
-    R --> H["Agent Harness"]
-    H --> P["RBAC + políticas + HITL"]
-    P --> M["MCP Streamable HTTP"]
+    G -->|bloqueado| X["Resposta segura sem LLM"]
+    G --> H["Agent Harness"]
+    H --> C{"Operação pendente?"}
+    C -->|sim| CP["Retomar checkpoint"]
+    C -->|não| R["Roteador determinístico"]
+    R -->|intenção explícita| N["Rota nativa"]
+    R -->|ambígua ou documental| P["Planner: OpenAI → Gemma4 → determinístico"]
+    CP --> LG["LangGraph"]
+    N --> LG
+    P --> V["Harness valida capability"]
+    V --> LG
+
+    LG -->|saldo ou limite| RB["RBAC + políticas"]
+    LG -->|Pix, limite ou desbloqueio| HITL["RBAC + HITL"]
+    LG -->|FAQ ou tarifas| K["RAG oficial"]
+
+    RB --> M["MCP Streamable HTTP"]
+    HITL -->|autorizado| M
+    HITL -->|rejeitado| Y["Cancelamento auditado"]
     M --> I["APIs internas simuladas"]
-    I --> DB["PostgreSQL + pgvector"]
-    H --> K["RAG oficial"]
-    K --> L["OpenAI → Gemma4 → determinístico"]
-    H --> O["Trace + auditoria"]
-    O --> D["Dashboard Streamlit"]
+    I --> O["Estado + auditoria"]
+
+    K --> S["MCP search_official_knowledge"]
+    S --> DB["PostgreSQL + pgvector"]
+    DB --> B{"Builder estruturado?"}
+    B -->|sim| BD["Resposta determinística"]
+    B -->|não| L["Síntese: OpenAI → Gemma4 → determinística"]
+
+    BD --> T["Resposta + trace"]
+    L --> T
+    O --> T
+    Y --> T
+    T --> D["Dashboard Streamlit"]
 ```
 
-O modelo sugere rota ou sintetiza texto grounded. Identidade, autorização, políticas, confirmação,
-execução de ferramentas e auditoria permanecem em código nativo.
+O Agent Harness controla retomadas, roteamento e execução. Os modelos apenas sugerem uma capability
+ou sintetizam texto grounded. Identidade, autorização, políticas, confirmação, ferramentas e
+auditoria permanecem em código nativo.
 
 ## Fluxos principais
 
