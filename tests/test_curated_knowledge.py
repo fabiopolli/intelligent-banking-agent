@@ -17,7 +17,14 @@ from app.services.knowledge.embedding import DeterministicTokenEmbedding
 from app.services.knowledge.retriever import LocalHybridRetriever
 from app.services.knowledge.service import GroundedKnowledgeService
 from frontend import ui_common
-from frontend.ops_dashboard import build_journey_steps, latest_audit_events
+from frontend.ops_dashboard import (
+    build_failure_diagnostic,
+    build_journey_steps,
+    interaction_status,
+    latest_audit_events,
+    summarize_token_usage,
+)
+from frontend import customer_chat
 from frontend.customer_chat import format_brl
 
 
@@ -119,6 +126,29 @@ def test_tariff_answer_is_direct_and_includes_official_withdrawal_values() -> No
 def test_customer_chat_formats_hitl_currency_in_pt_br() -> None:
     assert format_brl(15000) == "R$ 15.000,00"
     assert format_brl(6000.5) == "R$ 6.000,50"
+
+
+def test_customer_chat_accepts_consecutive_prompt_shortcuts(monkeypatch) -> None:
+    state = {
+        "message_input": "mensagem anterior",
+        "pending_prompt": None,
+        "clear_message_input": True,
+    }
+    monkeypatch.setattr(customer_chat.st, "session_state", state)
+
+    customer_chat.select_prompt("Consultar saldo")
+    customer_chat.prepare_message_input()
+
+    assert state["message_input"] == "Consultar saldo"
+    assert state["clear_message_input"] is False
+
+    state["clear_message_input"] = True
+    customer_chat.prepare_message_input()
+    customer_chat.select_prompt("Consultar limite")
+    customer_chat.prepare_message_input()
+
+    assert state["message_input"] == "Consultar limite"
+    assert state["clear_message_input"] is False
 
 
 def test_request_override_selects_docker_model_runner_only_for_documental_synthesis(
@@ -383,6 +413,46 @@ def test_dashboard_builds_observable_pix_hitl_journey() -> None:
     ]
     assert steps[4]["status"] == "warning"
     assert "create_pix" in steps[5]["detail"]
+
+
+def test_dashboard_summarizes_planner_and_llm_tokens_across_sdk_formats() -> None:
+    trace = {
+        "observability": {
+            "planner": {"token_usage": {"input_tokens": 20, "output_tokens": 5}},
+            "llm": {"token_usage": {"prompt_tokens": 100, "completion_tokens": 30}},
+        }
+    }
+
+    assert summarize_token_usage(trace) == {
+        "input_tokens": 120,
+        "output_tokens": 35,
+        "total_tokens": 155,
+        "available": True,
+    }
+
+
+def test_dashboard_builds_sanitized_failure_diagnostic() -> None:
+    trace = {
+        "session_id": "failed-session",
+        "observability": {
+            "failure": {
+                "http_status": 503,
+                "stage": "mcp_internal_systems",
+                "error_code": "internal_system_unavailable",
+                "error_type": "InternalSystemsUnavailable",
+                "summary": "A ferramenta interna não concluiu a solicitação.",
+                "probable_cause": "Timeout ou indisponibilidade MCP.",
+                "suggested_action": "Verifique API e MCP.",
+            }
+        },
+    }
+
+    diagnostic = build_failure_diagnostic(trace)
+    assert diagnostic is not None
+    assert diagnostic["http_status"] == 503
+    assert "stack" not in str(diagnostic).lower()
+    assert interaction_status(trace) == ("Falhou", "error")
+    assert build_journey_steps({"trace": trace})[1]["status"] == "blocked"
 
 
 def test_docker_provider_disables_sdk_retries_and_falls_back(monkeypatch) -> None:  # noqa: ANN001

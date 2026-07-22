@@ -136,6 +136,22 @@ class MockBankService:
         )
         return {"customer_id": customer.customer_id, "card_status": customer.card_status}
 
+    def unlock_card(self, customer_id: str) -> dict:
+        customer = self._require_customer(customer_id)
+        changed = customer.card_status != "ACTIVE"
+        customer.card_status = "ACTIVE"
+        customer.history.append({"action": "CARD_UNLOCK", "changed": changed})
+        audit_log_service.append(
+            customer.customer_id,
+            "CARD_UNLOCK",
+            {"card_status": customer.card_status, "changed": changed},
+        )
+        return {
+            "customer_id": customer.customer_id,
+            "card_status": customer.card_status,
+            "changed": changed,
+        }
+
     def get_service_history(self, customer_id: str) -> list[dict]:
         customer = self._require_customer(customer_id)
         return deepcopy(customer.history)

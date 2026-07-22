@@ -84,7 +84,7 @@ class OpenAIResponsesPlanner:
         fallback: Planner | None = None,
         prompts: PromptRegistry | None = None,
     ) -> None:
-        self._fallback = fallback or DeterministicPlanner()
+        self._fallback = fallback or DockerModelRunnerPlanner()
         self._prompts = prompts or prompt_registry
         self.last_trace: dict = {}
 
@@ -161,6 +161,95 @@ class OpenAIResponsesPlanner:
             "prompt_profile": self._prompts.profile,
             "prompt_version": self._prompts.version,
             "prompt_hash": self._prompts.digest("planner", "system"),
+            "token_usage": None,
+            "duration_ms": round((time.perf_counter() - start) * 1000),
+        }
+        return route
+
+    def _extract_usage(self, response: object) -> dict | None:
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return None
+        if hasattr(usage, "model_dump"):
+            return usage.model_dump()
+        return usage if isinstance(usage, dict) else None
+
+
+class DockerModelRunnerPlanner:
+    """Classify intent with the local OpenAI-compatible model runner.
+
+    The model only recommends one registered capability. Native harness code
+    remains responsible for authorization, policy, HITL and execution.
+    """
+
+    def __init__(self, fallback: Planner | None = None) -> None:
+        self._fallback = fallback or DeterministicPlanner()
+        self.last_trace: dict = {}
+
+    def classify(self, message: str) -> WorkflowRoute:
+        start = time.perf_counter()
+        capability_names = ", ".join(TOOL_TO_ROUTE)
+        prompt = (
+            "Select exactly one banking capability for the customer message. "
+            f"Reply with only one of these names: {capability_names}. "
+            "Do not answer the customer and do not include explanations."
+        )
+        try:
+            from openai import OpenAI
+
+            response = OpenAI(
+                api_key="not-needed",
+                base_url=settings.docker_model_runner_base_url,
+                timeout=settings.docker_model_runner_timeout_seconds,
+                max_retries=0,
+            ).chat.completions.create(
+                model=settings.docker_model_runner_model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": message},
+                ],
+                temperature=0,
+            )
+            content = (response.choices[0].message.content or "").strip()
+            selected = self._extract_capability(content)
+            route = TOOL_TO_ROUTE[selected]
+            self.last_trace = {
+                "provider": "docker-model-runner",
+                "model": settings.docker_model_runner_model,
+                "selected_tool": selected,
+                "route": route,
+                "fallback_used": False,
+                "fallback_reason": None,
+                "prompt": prompt,
+                "token_usage": self._extract_usage(response),
+                "duration_ms": round((time.perf_counter() - start) * 1000),
+            }
+            return route
+        except Exception as exc:  # noqa: BLE001
+            return self._fallback_route(message, prompt, start, f"provider_error:{type(exc).__name__}")
+
+    def _extract_capability(self, content: str) -> str:
+        normalized = content.strip().strip("`\"' ")
+        if normalized in TOOL_TO_ROUTE:
+            return normalized
+        matches = [name for name in TOOL_TO_ROUTE if name in normalized]
+        if len(matches) == 1:
+            return matches[0]
+        raise ValueError("Model runner did not select one registered capability.")
+
+    def _fallback_route(self, message: str, prompt: str, start: float, reason: str) -> WorkflowRoute:
+        route = self._fallback.classify(message)
+        fallback_trace = getattr(self._fallback, "last_trace", {}) or {}
+        self.last_trace = {
+            "provider": "docker-model-runner",
+            "model": settings.docker_model_runner_model,
+            "selected_tool": None,
+            "fallback_selected_tool": fallback_trace.get("selected_tool"),
+            "route": route,
+            "fallback_used": True,
+            "fallback_reason": reason,
+            "fallback_provider": fallback_trace.get("provider", "deterministic-router"),
+            "prompt": prompt,
             "token_usage": None,
             "duration_ms": round((time.perf_counter() - start) * 1000),
         }

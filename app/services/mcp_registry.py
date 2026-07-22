@@ -45,6 +45,16 @@ class McpToolRegistry:
                 "description": "Atualiza limite mockado e gera auditoria LIMIT_CHANGE.",
             },
             {
+                "name": "unlock_card",
+                "kind": "tool",
+                "transport": "mcp-and-internal-rest",
+                "path": "/v1/mcp/cards/unlock",
+                "requires_rbac": True,
+                "requires_hitl": True,
+                "audited": True,
+                "description": "Desbloqueia cartao somente para administrador apos HITL.",
+            },
+            {
                 "name": "create_pix",
                 "kind": "tool",
                 "transport": "mcp-and-internal-rest",

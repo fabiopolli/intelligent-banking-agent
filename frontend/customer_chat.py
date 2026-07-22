@@ -22,6 +22,8 @@ from frontend.ui_common import (
 def init_state() -> None:
     st.session_state.setdefault("chat_history", [])
     st.session_state.setdefault("message_input", "")
+    st.session_state.setdefault("pending_prompt", None)
+    st.session_state.setdefault("clear_message_input", False)
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("last_latency_ms", None)
     st.session_state.setdefault("last_render_latency_ms", None)
@@ -79,7 +81,7 @@ def render_sidebar() -> tuple[str, str, str, str, str] | None:
     else:
         customer_id = st.sidebar.text_input("Cliente alvo", value=DEFAULT_CUSTOMER_ID)
     llm_provider = st.sidebar.selectbox(
-        "Síntese documental",
+        "Modelo de IA",
         options=["configured", "docker_model_runner"],
         format_func=lambda value: (
             "Padrão — OpenAI com fallback"
@@ -88,7 +90,10 @@ def render_sidebar() -> tuple[str, str, str, str, str] | None:
         ),
         key="llm_provider",
     )
-    st.sidebar.caption("A seleção afeta somente respostas RAG que usam síntese por LLM.")
+    st.sidebar.caption(
+        "A seleção vale para o roteamento de intenções e para a síntese RAG. "
+        "Guardrails, RBAC, HITL e operações permanecem nativos."
+    )
     return api_url, session_id, customer_id, DEMO_PROFILES[profile_key][1], llm_provider
 
 
@@ -96,8 +101,26 @@ def render_prompt_buttons() -> None:
     st.caption("Escolha um caso de uso")
     columns = st.columns(len(PROMPTS))
     for column, (label, prompt) in zip(columns, PROMPTS.items()):
-        if column.button(label, use_container_width=True):
-            st.session_state["message_input"] = prompt
+        column.button(
+            label,
+            use_container_width=True,
+            on_click=select_prompt,
+            args=(prompt,),
+        )
+
+
+def select_prompt(prompt: str) -> None:
+    st.session_state["pending_prompt"] = prompt
+    st.session_state["clear_message_input"] = False
+
+
+def prepare_message_input() -> None:
+    pending_prompt = st.session_state.pop("pending_prompt", None)
+    if pending_prompt is not None:
+        st.session_state["message_input"] = pending_prompt
+        return
+    if st.session_state.pop("clear_message_input", False):
+        st.session_state["message_input"] = ""
 
 
 def submit_message(
@@ -108,6 +131,10 @@ def submit_message(
     message: str,
     llm_provider: str = "configured",
 ) -> None:
+    message = message.strip()
+    if not message:
+        st.warning("Digite uma mensagem antes de enviar.")
+        return
     st.session_state["chat_history"].append({"role": "user", "content": message})
     start = time.perf_counter()
     result = send_chat_message(
@@ -131,6 +158,7 @@ def render_chat(
     auth_token: str,
     llm_provider: str,
 ) -> None:
+    prepare_message_input()
     render_prompt_buttons()
 
     for item in st.session_state["chat_history"]:
@@ -138,7 +166,7 @@ def render_chat(
             # Streamlit treats an unescaped dollar sign as a Markdown math delimiter.
             st.write(str(item["content"]).replace("$", r"\$"))
 
-    with st.form("customer_chat_form", clear_on_submit=True):
+    with st.form("customer_chat_form"):
         message = st.text_area("Mensagem", key="message_input", height=120)
         submitted = st.form_submit_button("Enviar", type="primary", use_container_width=True)
 
@@ -146,6 +174,7 @@ def render_chat(
         return
 
     try:
+        st.session_state["clear_message_input"] = True
         submit_message(api_url, session_id, customer_id, auth_token, message, llm_provider)
         st.rerun()
     except Exception as exc:  # noqa: BLE001

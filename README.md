@@ -10,13 +10,16 @@ confirmação humana e auditoria imutável.
 ## O que a solução demonstra
 
 - conversa em português com memória estruturada por sessão;
-- rotas nativas para social, confirmações e continuações estruturadas, com planner LLM e fallback determinístico para as demais intenções;
+- rotas nativas para comandos bancários explícitos, social, confirmações e continuações estruturadas, com planner LLM para intenções ambíguas;
 - respostas de tarifas, investimentos, consignado e políticas baseadas somente na KB ingerida;
 - consultas de saldo, perfil e limite por um gateway MCP real;
-- Pix e alteração de limite executados por MCP somente depois de RBAC, políticas e HITL;
+- Pix, alteração de limite e desbloqueio administrativo executados por MCP somente depois de RBAC,
+  políticas e HITL;
 - guardrails e redaction antes de qualquer chamada de modelo;
 - auditoria crítica append-only no PostgreSQL, com hash encadeado e idempotência;
 - dashboard técnico com jornada dinâmica, RAG, LLM, MCP, HITL, latências e auditoria.
+- dashboard com tokens numéricos, status da interação, diagnóstico sanitizado de falhas, atualização
+  automática a cada 30 segundos e botão manual.
 
 ## Arquitetura
 
@@ -25,7 +28,7 @@ flowchart LR
     U["Cliente — Streamlit"] --> A["FastAPI / Auth"]
     A --> G["Guardrails + redaction"]
     G --> C["Memória LangGraph"]
-    C --> R["Rotas nativas / Planner OpenAI"]
+    C --> R["Rotas nativas / Planner OpenAI → Gemma4 → determinístico"]
     R --> H["Agent Harness"]
     H --> P["RBAC + políticas + HITL"]
     P --> M["MCP Streamable HTTP"]
@@ -59,6 +62,14 @@ execução de ferramentas e auditoria permanecem em código nativo.
 4. O cliente escolhe **Autorizar** ou **Não autorizar** no chat.
 5. Somente após autorização o MCP executa `create_pix` ou `update_card_limit`.
 6. O ciclo completo fica registrado na auditoria e no dashboard.
+
+### Desbloqueio administrativo de cartão
+
+1. O perfil administrador solicita o desbloqueio do cliente alvo em linguagem natural.
+2. O Harness exige papel `admin` e escopo `customer:any:write`; cliente e gerente são negados.
+3. A operação fica pausada no HITL e não chama ferramenta antes da confirmação.
+4. Após **Autorizar**, `unlock_card` é executada pelo MCP e o cartão retorna para `ACTIVE`.
+5. A operação é idempotente e registra `CARD_UNLOCK`; não existe endpoint público de reset geral.
 
 ## Componentes
 
@@ -185,25 +196,30 @@ As credenciais são locais e podem ser alteradas no Compose para outro ambiente.
 
 O roteamento é configurado por `.env`, sem alterações no código:
 
-- planner: OpenAI `gpt-5.4` → roteador determinístico;
+- planner de intenções ambíguas: OpenAI `gpt-5.4` → `gemma4:latest` → roteador determinístico;
 - síntese documental: OpenAI `gpt-5.4` → `gemma4:latest` → resposta grounded determinística;
-- comandos óbvios, social, segurança e side effects não dependem de LLM.
+- comandos explícitos de saldo, Pix, limite e emergência, além de social, segurança e side effects,
+  não dependem de LLM.
 
 Os prompts ficam fora do código em `prompts/<perfil>/`. O trace registra perfil, versão e hash do
 prompt, permitindo atualização e auditoria sem acoplar instruções aos nós.
 
 ### Teste explícito do Gemma
 
-No modo normal, o Gemma é fallback da **síntese documental** e só é chamado quando a OpenAI falha.
+No modo normal, o Gemma é fallback do **planner de intenções ambíguas** e da **síntese documental**
+quando a OpenAI falha.
 Para demonstrá-lo de forma previsível sem editar `.env` ou reiniciar containers, selecione
-**Gemma4 local — demonstração** na lateral do chat. Faça uma pergunta documental e confira no
-dashboard `provider=docker-model-runner` e `model=gemma4:latest`. Saldo, Pix, limite e saudações não
-acionam o sintetizador documental. O passo a passo completo está no
+**Gemma4 local — demonstração** na lateral do chat. A escolha passa a valer tanto para o planner
+quanto para o RAG. Faça uma pergunta documental ou ambígua e confira no dashboard
+`provider=docker-model-runner` e `model=gemma4:latest`. Comandos explícitos de saldo, Pix, limite,
+emergência e saudações permanecem nas rotas nativas e não chamam LLM. O passo a passo completo está no
 [blueprint AWS](docs/ARQUITETURA_AWS.md#teste-local-do-gemma-sem-alterar-código).
 
 A primeira inferência local pode ser mais lenta por causa do carregamento do modelo. O timeout do
 Docker Model Runner é independente (`DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS`, padrão `60`) para não
-alterar o limite mais curto usado pelo provider principal.
+alterar o limite mais curto usado pelo provider principal. O chat aguarda até
+`CHAT_REQUEST_TIMEOUT_SECONDS` (padrão `90`), cobrindo o failover sem abandonar a resposta local
+antes do timeout do provider.
 
 ## Decisões arquiteturais e trade-offs
 

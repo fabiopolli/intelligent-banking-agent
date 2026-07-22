@@ -21,6 +21,10 @@ class CardLimitUpdateRequest(BaseModel):
     new_limit: float = Field(gt=0)
 
 
+class CardUnlockRequest(BaseModel):
+    customer_id: str = Field(min_length=1)
+
+
 class PixCreateRequest(BaseModel):
     customer_id: str
     amount: float = Field(gt=0)
