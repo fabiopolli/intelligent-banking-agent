@@ -836,6 +836,39 @@ def test_pix_collects_missing_destination_before_execution() -> None:
     assert second_body["pix_details"]["destination_key"] == "maria@example.com"
 
 
+def test_pix_draft_accepts_bare_email_as_destination_followup() -> None:
+    first_response = client.post(
+        "/v1/channels/app/chat",
+        headers=_demo_auth_headers(settings.demo_customer_token),
+        json={
+            "session_id": "sess-pix-bare-email-followup",
+            "customer_id": "123",
+            "message": "Quero fazer um PIX de 7000 para chave pix",
+        },
+    )
+    assert first_response.status_code == 200
+    assert first_response.json()["pending_operation"] == "collect_pix_details"
+
+    second_response = client.post(
+        "/v1/channels/app/chat",
+        headers=_demo_auth_headers(settings.demo_customer_token),
+        json={
+            "session_id": "sess-pix-bare-email-followup",
+            "customer_id": "123",
+            "message": "maria@example.com",
+        },
+    )
+
+    assert second_response.status_code == 200
+    body = second_response.json()
+    assert body["route"] == "transaction"
+    assert body["pending_operation"] == "create_pix"
+    assert body["requires_confirmation"] is True
+    assert body["pix_details"]["amount"] == 7000.0
+    assert body["pix_details"]["destination_key"] == "maria@example.com"
+    assert body["observability"]["planner"]["provider"] == "not_called"
+
+
 def test_high_value_pix_collects_data_before_hitl_checkpoint() -> None:
     first_response = client.post(
         "/v1/channels/app/chat",

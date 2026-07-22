@@ -6,7 +6,12 @@ import unicodedata
 from uuid import uuid4
 
 from app.config import settings
-from app.services.agent_planner import Planner, build_agent_planner
+from app.services.agent_planner import (
+    TOOL_TO_ROUTE,
+    DockerModelRunnerPlanner,
+    Planner,
+    build_agent_planner,
+)
 from app.graph.workflow import DemoWorkflowGraph
 from app.schemas.auth import AuthContext
 from app.schemas.harness import HarnessResponse
@@ -22,6 +27,7 @@ from app.services.response_builder import ResponseBuilder
 from app.services.trace_store import trace_store
 from app.services.social_conversation import social_conversation_service
 from app.services.internal_systems import InternalSystemsGateway
+from app.services.intent_router import IntentRouter
 from app.services.audit_log import (
     AuditExecutionContext,
     audit_execution_scope,
@@ -38,8 +44,11 @@ class DemoHarness:
         guardrails_service: GuardrailsService | None = None,
         checkpoints: CheckpointStore | None = None,
         internal_systems: InternalSystemsGateway | None = None,
+        docker_router: Planner | None = None,
     ) -> None:
         self._router = router or build_agent_planner()
+        self._docker_router = docker_router or DockerModelRunnerPlanner()
+        self._native_router = IntentRouter()
         self._response_builder = response_builder or ResponseBuilder()
         self._rbac_service = rbac_service or RBACService()
         self._guardrails_service = guardrails_service or GuardrailsService()
@@ -118,17 +127,48 @@ class DemoHarness:
             return self._resume_pending_operation(payload, auth)
         if self._has_collectable_limit_draft(payload):
             return self._dispatch("core_banking_limit", payload, auth)
+        if self._checkpoints.get_pix_draft(payload.session_id) is not None:
+            response = self._dispatch("transaction", payload, auth)
+            response.observability = {
+                **response.observability,
+                "planner": {
+                    "provider": "not_called",
+                    "fallback_used": False,
+                    "fallback_reason": "pending_pix_draft",
+                    "duration_ms": 0,
+                },
+            }
+            return response
         conversation_context = self._workflow_graph.observe_conversation(
             payload.session_id,
             payload.message,
         )
         if self._is_contextual_limit_increase(payload, conversation_context):
             return self._dispatch("core_banking_limit", payload, auth)
+        native_route = self._native_router.classify_confident(payload.message)
+        if native_route is not None:
+            response = self._dispatch(native_route, payload, auth)
+            response.observability = {
+                **response.observability,
+                "planner": {
+                    "provider": "deterministic-native-router",
+                    "selected_tool": next(
+                        name for name, route in TOOL_TO_ROUTE.items()
+                        if route == native_route
+                    ),
+                    "route": native_route,
+                    "fallback_used": False,
+                    "fallback_reason": None,
+                    "duration_ms": 0,
+                },
+            }
+            return response
         enriched_payload = self._enrich_documental_followup(payload)
         planner_message = self._guardrails_service.redact_for_llm(enriched_payload.message)
-        route = self._classify_intent(planner_message)
+        selected_router = self._select_router(enriched_payload.llm_provider)
+        route = self._classify_intent(planner_message, selected_router)
         response = self._dispatch(route, enriched_payload, auth)
-        planner_trace = getattr(self._router, "last_trace", {}) or {}
+        planner_trace = getattr(selected_router, "last_trace", {}) or {}
         response.observability = {**response.observability, "planner": planner_trace}
         if route == "faq_fast_path" and response.grounding_sources:
             self._checkpoints.save_documental_draft(
@@ -137,9 +177,12 @@ class DemoHarness:
             )
         return response
 
+    def _select_router(self, llm_provider: str) -> Planner:
+        return self._docker_router if llm_provider == "docker_model_runner" else self._router
+
     @traceable(name="Intent Router", run_type="chain")
-    def _classify_intent(self, message: str) -> str:
-        return self._router.classify(message)
+    def _classify_intent(self, message: str, router: Planner) -> str:
+        return router.classify(message)
 
     def _dispatch(self, route: str, payload: ChatRequest, auth: AuthContext) -> HarnessResponse:
         access = "read"

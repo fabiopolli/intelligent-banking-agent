@@ -4,9 +4,14 @@ import sys
 from types import SimpleNamespace
 
 from app.config import settings
-from app.services.agent_planner import DeterministicPlanner, OpenAIResponsesPlanner
+from app.services.agent_planner import (
+    DeterministicPlanner,
+    DockerModelRunnerPlanner,
+    OpenAIResponsesPlanner,
+)
 from app.schemas.messages import ChatRequest
 from app.services.harness import DemoHarness
+from app.services.internal_systems import LocalInternalSystemsGateway
 
 
 def _fake_response(tool_name: str):
@@ -20,6 +25,121 @@ def _fake_response(tool_name: str):
         ],
         usage=SimpleNamespace(model_dump=lambda: {"input_tokens": 20, "output_tokens": 5}),
     )
+
+
+def _fake_chat_response(content: str):
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+        usage=SimpleNamespace(model_dump=lambda: {"prompt_tokens": 12, "completion_tokens": 3}),
+    )
+
+
+def test_docker_model_runner_planner_selects_registered_capability(monkeypatch) -> None:  # noqa: ANN001
+    captured = {}
+
+    class FakeCompletions:
+        def create(self, **kwargs):  # noqa: ANN003, ANN201
+            captured.update(kwargs)
+            return _fake_chat_response("prepare_pix_transfer")
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs) -> None:  # noqa: ANN003
+            captured["client"] = kwargs
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    planner = DockerModelRunnerPlanner()
+
+    route = planner.classify("Quero fazer um Pix")
+
+    assert route == "transaction"
+    assert captured["model"] == settings.docker_model_runner_model
+    assert captured["client"]["timeout"] == settings.docker_model_runner_timeout_seconds
+    assert planner.last_trace["provider"] == "docker-model-runner"
+    assert planner.last_trace["fallback_used"] is False
+
+
+def test_openai_planner_falls_back_through_gemma_before_deterministic(monkeypatch) -> None:  # noqa: ANN001
+    class FailingResponses:
+        @staticmethod
+        def create(**kwargs):  # noqa: ANN003, ANN205
+            raise TimeoutError("openai unavailable")
+
+    class FakeCompletions:
+        @staticmethod
+        def create(**kwargs):  # noqa: ANN003, ANN205
+            return _fake_chat_response("get_customer_balance")
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs) -> None:  # noqa: ANN003
+            self.responses = FailingResponses()
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setattr(settings, "openai_api_key", "test-key-not-real")
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    planner = OpenAIResponsesPlanner()
+
+    route = planner.classify("Qual e o meu saldo?")
+
+    assert route == "core_banking_balance"
+    assert planner.last_trace["fallback_provider"] == "docker-model-runner"
+
+
+def test_request_override_forces_docker_model_runner_planner() -> None:
+    class RecordingPlanner:
+        def __init__(self, provider: str, route: str) -> None:
+            self.calls = []
+            self.route = route
+            self.last_trace = {"provider": provider}
+
+        def classify(self, message):  # noqa: ANN001, ANN201
+            self.calls.append(message)
+            return self.route
+
+    configured = RecordingPlanner("configured-test", "faq_fast_path")
+    docker = RecordingPlanner("docker-model-runner", "core_banking_balance")
+    result = DemoHarness(
+        router=configured,
+        docker_router=docker,
+        internal_systems=LocalInternalSystemsGateway(),
+    ).handle_message(
+        ChatRequest(
+            session_id="forced-docker-planner",
+            customer_id="123",
+            message="Quanto dinheiro tenho disponível?",
+            llm_provider="docker_model_runner",
+        )
+    )
+
+    assert result["route"] == "core_banking"
+    assert configured.calls == []
+    assert docker.calls == ["Quanto dinheiro tenho disponível?"]
+    assert result["observability"]["planner"]["provider"] == "docker-model-runner"
+
+
+def test_explicit_pix_uses_native_router_without_any_llm() -> None:
+    class MustNotRunPlanner:
+        last_trace = {}
+
+        def classify(self, message):  # noqa: ANN001, ANN201
+            raise AssertionError("Explicit Pix must not call an LLM planner.")
+
+    result = DemoHarness(
+        router=MustNotRunPlanner(),
+        docker_router=MustNotRunPlanner(),
+        internal_systems=LocalInternalSystemsGateway(),
+    ).handle_message(
+        ChatRequest(
+            session_id="native-pix-router",
+            customer_id="123",
+            message="Quero fazer um PIX de 7000 para chave pix maria@example.com",
+            llm_provider="docker_model_runner",
+        )
+    )
+
+    assert result["route"] == "transaction"
+    assert result["requires_confirmation"] is True
+    assert result["observability"]["planner"]["provider"] == "deterministic-native-router"
 
 
 def test_openai_planner_selects_registered_balance_tool(monkeypatch) -> None:  # noqa: ANN001
