@@ -1,0 +1,139 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: itau_agent
+      POSTGRES_USER: itau
+      POSTGRES_PASSWORD: itau
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itau -d itau_agent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - knowledge-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      DEMO_AUTH_REQUIRED: ${DEMO_AUTH_REQUIRED:-true}
+      DEMO_CUSTOMER_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_MANAGER_TOKEN: ${DEMO_MANAGER_TOKEN:-demo-manager-token}
+      DEMO_ADMIN_TOKEN: ${DEMO_ADMIN_TOKEN:-demo-admin-token}
+      KNOWLEDGE_STORE: postgres
+      AUDIT_STORE: postgres
+      DATABASE_URL: postgresql://itau:itau@postgres:5432/itau_agent
+      LLM_GROUNDED_FAQ_ENABLED: ${LLM_GROUNDED_FAQ_ENABLED:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-local}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.4}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      AGENTIC_PLANNER_ENABLED: ${AGENTIC_PLANNER_ENABLED:-true}
+      PROMPT_ROOT: /app/prompts
+      PROMPT_PROFILE: ${PROMPT_PROFILE:-banking-v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCKER_MODEL_RUNNER_BASE_URL: ${COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL:-http://host.docker.internal:12434/engines/v1}
+      DOCKER_MODEL_RUNNER_MODEL: ${DOCKER_MODEL_RUNNER_MODEL:-gemma4:latest}
+      DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS: ${DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS:-60}
+      INTERNAL_SYSTEMS_TRANSPORT: mcp
+      MCP_CLIENT_URL: http://mcp-server:8600/mcp
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mcp-server:
+        condition: service_started
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      API_INTERNAL_BASE_URL: http://api:8000/v1
+      DEMO_AUTH_REQUIRED: ${DEMO_AUTH_REQUIRED:-true}
+      DEMO_CUSTOMER_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_MANAGER_TOKEN: ${DEMO_MANAGER_TOKEN:-demo-manager-token}
+      DEMO_ADMIN_TOKEN: ${DEMO_ADMIN_TOKEN:-demo-admin-token}
+      KNOWLEDGE_STORE: postgres
+      DATABASE_URL: postgresql://itau:itau@postgres:5432/itau_agent
+      LLM_GROUNDED_FAQ_ENABLED: ${LLM_GROUNDED_FAQ_ENABLED:-false}
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-local}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.4}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      AGENTIC_PLANNER_ENABLED: ${AGENTIC_PLANNER_ENABLED:-true}
+      PROMPT_ROOT: /app/prompts
+      PROMPT_PROFILE: ${PROMPT_PROFILE:-banking-v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DOCKER_MODEL_RUNNER_BASE_URL: ${COMPOSE_DOCKER_MODEL_RUNNER_BASE_URL:-http://host.docker.internal:12434/engines/v1}
+      DOCKER_MODEL_RUNNER_MODEL: ${DOCKER_MODEL_RUNNER_MODEL:-gemma4:latest}
+      DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS: ${DOCKER_MODEL_RUNNER_TIMEOUT_SECONDS:-60}
+      MCP_SERVER_HOST: 0.0.0.0
+      MCP_SERVER_PORT: 8600
+    command:
+      - python
+      - -m
+      - app.mcp.server
+    extra_hosts:
+      - "model-runner.docker.internal:host-gateway"
+    ports:
+      - "8600:8600"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  customer-chat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      DEFAULT_API_URL: http://api:8000/v1
+      DEMO_AUTH_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_CUSTOMER_TOKEN: ${DEMO_CUSTOMER_TOKEN:-demo-customer-123-token}
+      DEMO_MANAGER_TOKEN: ${DEMO_MANAGER_TOKEN:-demo-manager-token}
+      DEMO_ADMIN_TOKEN: ${DEMO_ADMIN_TOKEN:-demo-admin-token}
+    command:
+      - streamlit
+      - run
+      - frontend/customer_chat.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8501"
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+  ops-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      INTERNAL_TOOL_API_KEY: ${INTERNAL_TOOL_API_KEY:-demo-internal-tool-key}
+      DEFAULT_API_URL: http://api:8000/v1
+    command:
+      - streamlit
+      - run
+      - frontend/ops_dashboard.py
+      - --server.address
+      - 0.0.0.0
+      - --server.port
+      - "8502"
+    ports:
+      - "8502:8502"
+    depends_on:
+      - api
+
+volumes:
+  knowledge-data:

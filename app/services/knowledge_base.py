@@ -1,0 +1,33 @@
+from app.services.knowledge import (
+    GroundedKnowledgeService,
+    HELP_CENTER_SOURCE,
+    KnowledgeDocument,
+    LocalHybridRetriever,
+    LocalReranker,
+    OfficialWebSnapshotIngestor,
+    POLICIES_SOURCE,
+    RetrievedKnowledge,
+    TARIFF_PDF_PATH,
+    TARIFF_PDF_SOURCE,
+    TariffGuidance,
+    TariffPdfIngestor,
+    build_official_documents,
+    knowledge_service,
+)
+
+__all__ = [
+    "GroundedKnowledgeService",
+    "HELP_CENTER_SOURCE",
+    "KnowledgeDocument",
+    "LocalHybridRetriever",
+    "LocalReranker",
+    "OfficialWebSnapshotIngestor",
+    "POLICIES_SOURCE",
+    "RetrievedKnowledge",
+    "TARIFF_PDF_PATH",
+    "TARIFF_PDF_SOURCE",
+    "TariffGuidance",
+    "TariffPdfIngestor",
+    "build_official_documents",
+    "knowledge_service",
+]

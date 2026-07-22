@@ -1,0 +1,38 @@
+{
+  "catalog_version": 1,
+  "source": ".docs/tabela_geral_de_tarifas_pf_pdf.pdf",
+  "scope": "chargeable_rows_rules_and_packages",
+  "effective_from": "2026-07-01",
+  "page_count": 25,
+  "pages": [
+    {"page_number":1,"tariff_records":0,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed","note":"Capa; nenhuma linha tarifável."},
+    {"page_number":2,"tariff_records":0,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed","note":"Introdução e navegação; nenhuma linha tarifável."},
+    {"page_number":3,"tariff_records":0,"package_records":8,"package_item_records":56,"rule_records":0,"aliases":4,"status":"reviewed","note":"Doze colunas de pacotes; oito composições nesta página e quatro padronizadas na página 5."},
+    {"page_number":4,"tariff_records":0,"package_records":37,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":5,"tariff_records":0,"package_records":4,"package_item_records":22,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":6,"tariff_records":3,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":7,"tariff_records":14,"package_records":0,"package_item_records":0,"rule_records":1,"aliases":0,"status":"reviewed"},
+    {"page_number":8,"tariff_records":9,"package_records":0,"package_item_records":0,"rule_records":4,"aliases":0,"status":"reviewed"},
+    {"page_number":9,"tariff_records":15,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":10,"tariff_records":1,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":4,"status":"reviewed"},
+    {"page_number":11,"tariff_records":1,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":9,"status":"reviewed"},
+    {"page_number":12,"tariff_records":18,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":2,"status":"reviewed"},
+    {"page_number":13,"tariff_records":13,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":14,"tariff_records":13,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":5,"status":"reviewed"},
+    {"page_number":15,"tariff_records":5,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":3,"status":"reviewed"},
+    {"page_number":16,"tariff_records":2,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":16,"status":"reviewed"},
+    {"page_number":17,"tariff_records":22,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"complete_with_conflicts","note":"Duas linhas contradizem a página 20 e permanecem bloqueadas."},
+    {"page_number":18,"tariff_records":21,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":19,"tariff_records":3,"package_records":1,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":20,"tariff_records":2,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":20,"status":"complete_with_conflicts","note":"Repete a página 17 com duas divergências registradas e bloqueadas."},
+    {"page_number":21,"tariff_records":16,"package_records":0,"package_item_records":0,"rule_records":0,"aliases":0,"status":"reviewed"},
+    {"page_number":22,"tariff_records":11,"package_records":0,"package_item_records":0,"rule_records":5,"aliases":2,"status":"reviewed"},
+    {"page_number":23,"tariff_records":0,"package_records":0,"package_item_records":0,"rule_records":24,"aliases":0,"status":"reviewed"},
+    {"page_number":24,"tariff_records":0,"package_records":0,"package_item_records":0,"rule_records":19,"aliases":0,"status":"reviewed"},
+    {"page_number":25,"tariff_records":0,"package_records":0,"package_item_records":0,"rule_records":3,"aliases":0,"status":"reviewed"}
+  ],
+  "conflicts": [
+    {"subject":"Avaliação de bem em garantia de financiamento","page_17":"748.00","page_20":"709.00","currency":"BRL","status":"review_required"},
+    {"subject":"Cadastro inicial para financiamento ou leasing","page_17":"1149.00","page_20":"1025.00","currency":"BRL","status":"review_required"}
+  ]
+}

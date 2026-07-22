@@ -1,0 +1,8 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.pyc
+.runtime
+.env
+intelligent_banking_agent.egg-info
