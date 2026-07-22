@@ -290,5 +290,3 @@ LangSmith é opcional e controlado por `LANGSMITH_TRACING` e `LANGSMITH_API_KEY`
 - [Arquitetura e decisões técnicas](docs/ARQUITETURA.md)
 - [Blueprint de produção na AWS](docs/ARQUITETURA_AWS.md)
 - [Guia público de demonstração](docs/GUIA_DEMO.md)
-
-O roteiro pessoal detalhado permanece local em `.temp/06_project_pitch.md` e não é versionado.
